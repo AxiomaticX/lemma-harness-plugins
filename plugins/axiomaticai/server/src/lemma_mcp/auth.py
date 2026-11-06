@@ -184,7 +184,7 @@ class Session:
     async def refresh(self) -> str:
         """A new access token from the stored refresh token, signing in first if there is none."""
         self._require_client()
-        # The monitor rotates the same token, so read it only while holding the file lock.
+        # The wake-up hook rotates the same token, so read it only while holding the file lock.
         async with self._mutex, self.store.lock:
             refresh_token = self.store.get()
             if refresh_token is not None:

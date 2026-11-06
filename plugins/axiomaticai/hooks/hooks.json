@@ -1,0 +1,18 @@
+{
+  "description": "Wakes Claude when a Lemma run it started or waited on ends, or after the wait it asked for.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__plugin_axiomaticai_lemma__(send_message|wait_for_result)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "UV_PROJECT_ENVIRONMENT=\"${CLAUDE_PLUGIN_DATA}/venv\" uv run --frozen --quiet --project \"${CLAUDE_PLUGIN_ROOT}/server\" lemma-wake --data-dir \"${CLAUDE_PLUGIN_DATA}\"",
+            "asyncRewake": true,
+            "timeout": 86400
+          }
+        ]
+      }
+    ]
+  }
+}

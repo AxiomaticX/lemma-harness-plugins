@@ -1,7 +1,7 @@
 [project]
 name = "lemma-mcp"
 version = "0.1.0"
-description = "Local MCP server and run monitor for the Lemma Claude Code plugin"
+description = "Local MCP server and run wake-up hook for the Lemma Claude Code plugin"
 requires-python = ">=3.12"
 dependencies = [
     "filelock>=4.2",
@@ -12,7 +12,7 @@ dependencies = [
 
 [project.scripts]
 lemma-mcp = "lemma_mcp.server:main"
-lemma-watch = "lemma_mcp.watch:main"
+lemma-wake = "lemma_mcp.wake:main"
 
 [dependency-groups]
 dev = [
