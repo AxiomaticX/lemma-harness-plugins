@@ -71,6 +71,13 @@ RUN_PLAN = (
     "Run an approved plan: scope next for its next task, or all for every task until one needs "
     "the user. Returns at once with the run id. " + WAKE
 )
+START_WORKFLOW = (
+    "Start a new Lemma conversation with one of its ready-made workflows (see list_workflows), "
+    "giving its inputs as a map of input name to answer; a choice takes one of its options and "
+    "a multi_choice a list of them. Its file inputs are the files given here, as local paths. "
+    "model, provider and machine are as for create_conversation. Returns at once with the run "
+    "id. " + WAKE
+)
 
 Mode = Literal["act", "plan"]
 Provider = Literal["anthropic", "google", "open"]
@@ -135,7 +142,10 @@ def build_server(app: App) -> MCPServer:
         return {"conversation_id": conversation_id, "run_id": run_id, "url": url}
 
     async def send(
-        conversation_id: str, content: str, files: list[str] | None, settings: dict[str, Any]
+        conversation_id: str,
+        content: str | None,
+        files: list[str] | None,
+        settings: dict[str, Any],
     ) -> str:
         paths = [app.local_path(p) for p in files or []]
         file_ids = await remote_files.upload(app.client, paths) if paths else []
@@ -219,6 +229,35 @@ def build_server(app: App) -> MCPServer:
         reason: str = "",
     ) -> dict[str, Any]:
         return await plan.review(app.client, conversation_id, task_id, decision, reason)
+
+    @server.tool()
+    @_reported
+    async def list_workflows() -> list[dict[str, Any]]:
+        """Lemma's ready-made workflows, each with the inputs it asks for."""
+        return await options.workflows(app.client)
+
+    @server.tool(description=START_WORKFLOW)
+    @_reported
+    async def start_workflow(
+        name: str,
+        inputs: dict[str, Any] | None = None,
+        files: list[str] | None = None,
+        model: Model | None = None,
+        provider: Provider | None = None,
+        machine: Machine | None = None,
+        wake_after_minutes: int = WAKE_AFTER_MINUTES,
+    ) -> dict[str, Any]:
+        conversation_id = str(uuid.uuid4())
+        settings = {
+            "workflow": {"name": name, "inputs": inputs or {}},
+            "model": model,
+            "model_family": provider,
+            "sandbox_type": machine,
+        }
+        run_id = await send(conversation_id, None, files, settings)
+        if app.open_browser:
+            webbrowser.open(app.target.conversation_url(conversation_id))
+        return started(conversation_id, run_id)
 
     @server.tool(description=RUN_PLAN)
     @_reported

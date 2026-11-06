@@ -38,6 +38,14 @@ colleague: the goal, what you already know, and what a good result looks like. C
 
 Both return `conversation_id`, `run_id` and `url`. Keep all three.
 
+## Ready-made workflows
+
+Lemma has ready-made workflows for common jobs, such as surveying the literature, making a paper
+interactive, verifying a paper's references or simulating a device. `list_workflows` lists them
+with the inputs each asks for. When the user's request matches one, start it with
+`start_workflow`, its inputs, and any files it needs as local paths. Ask the user for a required
+input you don't have rather than guessing it.
+
 ## Decisions are the user's
 
 Lemma sometimes stops for a decision: a question in its plan, approval of the plan, a review of
