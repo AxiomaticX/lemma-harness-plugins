@@ -9,6 +9,17 @@ Lemma is a separate agent that works in its own conversation, on its own machine
 user's Lemma account. Each message you send starts a run, and the usage is charged to that
 account, the same as a message typed in the browser.
 
+## Keep the user informed
+
+The user sees none of what these tools return, and none of the wake-ups that tell you a run
+ended. Everything they learn about Lemma comes from what you tell them.
+
+- When you send a message, say what you asked Lemma to do and give them `url`.
+- When a run ends, tell them its outcome and what Lemma answered, in your own words.
+- When a call fails, pass Lemma's message on as it is, such as a model it refused, a plan that
+  has run out, or a conversation that is busy, before you decide what to do next. Never retry
+  with different options without saying so.
+
 ## Hand work over
 
 Call `send_message` with the task written as you would brief a colleague: the goal, what you
@@ -59,6 +70,9 @@ wait for the current run first, or start a new conversation.
 
 `url` opens the same conversation in Lemma in the browser, where the user can read every step
 and continue it themselves. Offer it whenever the user should see or steer the work.
+
+When the user asks to see a conversation, call `open_in_browser` with its id. If it returns
+`opened` false, no browser could be opened: give them `url` instead.
 
 ## Sign-in
 

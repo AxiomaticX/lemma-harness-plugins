@@ -156,6 +156,13 @@ def build_server(app: App) -> MCPServer:
         return {"path": str(saved)}
 
     @server.tool()
+    async def open_in_browser(conversation_id: str) -> dict[str, Any]:
+        """Open a conversation in Lemma in the user's default browser. If opened is false, no
+        browser could be opened: give the user url instead."""
+        url = app.target.conversation_url(conversation_id)
+        return {"opened": webbrowser.open(url), "url": url}
+
+    @server.tool()
     @_reported
     async def login() -> str:
         """Sign in to Lemma in the browser. Other tools do this on first use."""

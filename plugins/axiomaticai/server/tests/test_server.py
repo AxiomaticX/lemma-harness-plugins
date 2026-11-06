@@ -51,6 +51,21 @@ async def test_only_a_new_conversation_opens_in_the_browser(
     assert opened == [started["url"]]
 
 
+@pytest.mark.parametrize("opens", [True, False])
+async def test_a_conversation_opens_on_request_and_its_link_comes_back_either_way(
+    app: App, monkeypatch: pytest.MonkeyPatch, opens: bool
+):
+    opened: list[str] = []
+    monkeypatch.setattr("lemma_mcp.server.webbrowser.open", lambda url: opened.append(url) or opens)
+
+    result = _structured(
+        await build_server(app).call_tool("open_in_browser", {"conversation_id": "c1"})
+    )
+
+    assert result == {"opened": opens, "url": "https://lemma.test/en/lemma/c1"}
+    assert opened == ["https://lemma.test/en/lemma/c1"]
+
+
 def _structured(result) -> dict:
     return result.structured_content or json.loads(result.content[0].text)
 
