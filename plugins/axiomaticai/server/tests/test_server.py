@@ -43,7 +43,9 @@ async def test_only_a_new_conversation_opens_in_the_browser(
     monkeypatch.setattr("lemma_mcp.server.webbrowser.open", opened.append)
     server = build_server(replace(app, open_browser=True))
 
-    started = _structured(await server.call_tool("send_message", {"content": "go"}))
+    started = _structured(
+        await server.call_tool("create_conversation", {"content": "go", "mode": "act"})
+    )
     await server.call_tool(
         "send_message", {"content": "and then", "conversation_id": started["conversation_id"]}
     )
@@ -70,13 +72,22 @@ def _structured(result) -> dict:
     return result.structured_content or json.loads(result.content[0].text)
 
 
-async def test_a_new_conversation_is_started(app: App, api):
+async def test_a_new_conversation_starts_in_the_mode_model_and_machine_chosen(app: App, api):
     route = api.post(url__regex=r"https://api.test/conversations/[^/]+/messages").mock(
         return_value=httpx.Response(202, json={"active": True, "run_id": "r1", "started_at": None})
     )
 
     result = _structured(
-        await build_server(app).call_tool("send_message", {"content": "go", "machine": "gpu"})
+        await build_server(app).call_tool(
+            "create_conversation",
+            {
+                "content": "go",
+                "mode": "plan",
+                "model": "pro",
+                "provider": "google",
+                "machine": "gpu",
+            },
+        )
     )
 
     conversation_id = result["conversation_id"]
@@ -85,9 +96,37 @@ async def test_a_new_conversation_is_started(app: App, api):
     assert json.loads(route.calls.last.request.content) == {
         "content": "go",
         "file_ids": [],
-        "plan_mode": False,
+        "mode": "plan",
+        "model": "pro",
+        "model_family": "google",
         "sandbox_type": "gpu",
     }
+
+
+async def test_a_message_that_names_no_mode_or_model_keeps_the_conversations(app: App, api):
+    route = api.post("https://api.test/conversations/c1/messages").mock(
+        return_value=httpx.Response(202, json={"active": True, "run_id": "r2", "started_at": None})
+    )
+
+    await build_server(app).call_tool("send_message", {"conversation_id": "c1", "content": "more"})
+
+    assert json.loads(route.calls.last.request.content) == {"content": "more", "file_ids": []}
+
+
+async def test_an_answer_goes_on_in_a_new_run(app: App, api):
+    route = api.post("https://api.test/conversations/c1/runs/r1/answers").mock(
+        return_value=httpx.Response(202, json={"active": True, "run_id": "r2", "started_at": None})
+    )
+    answers = [{"id": "int-c1", "approved": False, "reason": "rerun it"}]
+
+    result = _structured(
+        await build_server(app).call_tool(
+            "answer_questions", {"conversation_id": "c1", "run_id": "r1", "answers": answers}
+        )
+    )
+
+    assert result["run_id"] == "r2"
+    assert json.loads(route.calls.last.request.content) == {"answers": answers}
 
 
 async def test_a_lemma_failure_reaches_the_agent_as_its_own_message(app: App, api):
@@ -101,7 +140,14 @@ async def test_a_lemma_failure_reaches_the_agent_as_its_own_message(app: App, ap
 
 async def test_the_result_carries_the_link_to_the_conversation(app: App, api):
     api.get("https://api.test/conversations/c1/runs/r1").mock(
-        return_value=httpx.Response(200, json={"outcome": "waiting_for_input", "answer": None})
+        return_value=httpx.Response(
+            200,
+            json={
+                "outcome": "waiting_for_input",
+                "answer": None,
+                "questions": [{"id": "int-c1", "message": "Accept Task 1's results?"}],
+            },
+        )
     )
 
     result = _structured(
@@ -111,5 +157,6 @@ async def test_the_result_carries_the_link_to_the_conversation(app: App, api):
     assert result == {
         "outcome": "waiting_for_input",
         "answer": None,
+        "questions": [{"id": "int-c1", "message": "Accept Task 1's results?"}],
         "url": "https://lemma.test/en/lemma/c1",
     }

@@ -22,6 +22,7 @@ POLL_SECONDS = 5.0
 class RunResult:
     outcome: str
     answer: str | None
+    questions: tuple[dict[str, str], ...] = ()
 
 
 async def send(
@@ -44,7 +45,26 @@ async def send(
 async def result(client: LemmaClient, conversation_id: str, run_id: str) -> RunResult:
     response = await client.request("GET", f"/conversations/{conversation_id}/runs/{run_id}")
     body = response.json()
-    return RunResult(outcome=body["outcome"], answer=body.get("answer"))
+    return RunResult(
+        outcome=body["outcome"],
+        answer=body.get("answer"),
+        questions=tuple(
+            {"id": q["id"], "message": q.get("message", "")} for q in body.get("questions") or []
+        ),
+    )
+
+
+async def answer(
+    client: LemmaClient, conversation_id: str, run_id: str, answers: list[dict[str, Any]]
+) -> str:
+    """Answer what a run stopped on; the conversation goes on in the new run whose id comes back."""
+    response = await client.request(
+        "POST",
+        f"/conversations/{conversation_id}/runs/{run_id}/answers",
+        json={"answers": answers},
+        timeout=httpx.Timeout(30.0, read=SEND_READ_TIMEOUT_SECONDS),
+    )
+    return response.json()["run_id"]
 
 
 async def wait(client: LemmaClient, conversation_id: str, run_id: str, timeout: float) -> RunResult:
