@@ -8,7 +8,6 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from lemma_mcp.client import LemmaClient
 from lemma_mcp.server import App, build_server
-from lemma_mcp.watch import WatchedRun, WatchList
 
 
 @pytest.fixture
@@ -16,7 +15,6 @@ def app(client: LemmaClient, tmp_path: Path) -> App:
     return App(
         target=client.target,
         client=client,
-        watch=WatchList(tmp_path / "data"),
         project_dir=tmp_path,
         open_browser=False,
     )
@@ -57,7 +55,7 @@ def _structured(result) -> dict:
     return result.structured_content or json.loads(result.content[0].text)
 
 
-async def test_a_new_conversation_is_started_and_its_run_watched(app: App, api):
+async def test_a_new_conversation_is_started(app: App, api):
     route = api.post(url__regex=r"https://api.test/conversations/[^/]+/messages").mock(
         return_value=httpx.Response(202, json={"active": True, "run_id": "r1", "started_at": None})
     )
@@ -75,9 +73,6 @@ async def test_a_new_conversation_is_started_and_its_run_watched(app: App, api):
         "plan_mode": False,
         "sandbox_type": "gpu",
     }
-    assert app.watch.for_project(str(app.project_dir)) == [
-        WatchedRun(conversation_id, "r1", str(app.project_dir))
-    ]
 
 
 async def test_a_lemma_failure_reaches_the_agent_as_its_own_message(app: App, api):

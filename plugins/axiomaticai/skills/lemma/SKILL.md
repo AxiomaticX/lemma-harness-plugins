@@ -27,10 +27,13 @@ already know, and what a good result looks like.
 
 Runs take minutes, and long ones take hours. Do not poll in a loop.
 
-- Call `wait_for_result` with the run's ids. It returns as soon as the run ends, or after
-  `timeout_s` seconds (600 at most) with outcome `running`. Call it again to keep waiting.
-- The plugin's monitor also posts a line when a run started from this project finishes, so you
-  can carry on with other work and come back to it.
+- After `send_message`, you are woken when the run ends, so carry on with other work. If it is
+  still going after `wake_after_minutes` (60 by default), you are woken with word of that
+  instead. Call `wait_for_result` then to keep waiting, which arms the next wake-up.
+- Set `wake_after_minutes` higher only when you know the run will take hours, such as a long
+  simulation or a whole plan.
+- To block until the run ends, call `wait_for_result`. It returns as soon as the run ends, or
+  after `timeout_s` seconds (600 at most) with outcome `running`.
 - `get_result` reports the outcome at once without waiting.
 
 ## Read the outcome
@@ -38,7 +41,7 @@ Runs take minutes, and long ones take hours. Do not poll in a loop.
 | outcome | meaning | what to do |
 | --- | --- | --- |
 | `answered` | The run ended with a reply. | Use `answer`. |
-| `running` | Still working. | Wait again, or carry on and wait for the monitor. |
+| `running` | Still working. | Carry on; you are woken when it ends. |
 | `waiting_for_input` | Lemma needs a decision only the user can make. | Give the user `url` to answer it in the browser. |
 | `no_answer` | The run ended without a reply. | Give the user `url` to see what happened. |
 

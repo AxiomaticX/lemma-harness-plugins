@@ -51,10 +51,12 @@ Sign-in listens for the browser's redirect on `127.0.0.1`, on the first free por
 
 - `.mcp.json`: a local stdio MCP server, run with `uv` from `server/`. Its virtualenv lives in
   the plugin's data directory, so plugin updates don't rebuild it in place.
-- `monitors/monitors.json`: a monitor that posts a line when a run started from the current
-  project finishes.
+- `hooks/hooks.json`: after `send_message` or a `wait_for_result` that found the run still going,
+  a background hook waits on the run and wakes Claude when it ends, or after
+  `wake_after_minutes` (60 by default) to say it is still running. Nothing runs while you aren't
+  using Lemma.
 - `skills/lemma/SKILL.md`: how an agent should work with Lemma.
-- `server/`: the `lemma-mcp` server and the `lemma-watch` monitor, in one Python package.
+- `server/`: the `lemma-mcp` server and the `lemma-wake` hook, in one Python package.
 
 All file transfer goes through `server/src/lemma_mcp/client/files.py`.
 

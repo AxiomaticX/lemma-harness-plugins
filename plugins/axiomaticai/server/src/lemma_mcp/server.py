@@ -18,25 +18,27 @@ from .client import LemmaClient, runs
 from .client import files as remote_files
 from .config import TARGET, Target
 from .errors import LemmaError
-from .watch import WatchedRun, WatchList
 
 MAX_WAIT_SECONDS = 600
+WAKE_AFTER_MINUTES = 60
 
 INSTRUCTIONS = (
-    "Lemma is Axiomatic's research and engineering agent. Send it a task with send_message, "
-    "then wait for the run with wait_for_result. Runs take minutes to hours."
+    "Lemma is Axiomatic's research and engineering agent. Send it a task with send_message. "
+    "Runs take minutes to hours; you are woken when the run ends, so carry on meanwhile."
 )
 SEND_MESSAGE = (
     "Send a message to Lemma, starting a new conversation unless conversation_id is given. "
     "files are local file paths, uploaded and added to the conversation first. machine applies "
-    "to a new conversation only. Returns at once with the run id; wait for it with "
-    "wait_for_result."
+    "to a new conversation only. Returns at once with the run id. You are woken when the run "
+    "ends, or after wake_after_minutes (default 60) with word that it is still running; set it "
+    "higher only when you know the run will take hours."
 )
 WAIT_FOR_RESULT = (
     "Wait up to timeout_s seconds (at most 600) for a run to finish, then report it. outcome is "
-    "running (still going: wait again), answered (answer holds the reply), waiting_for_input "
-    "(Lemma needs the user: give them url), or no_answer (the run ended without a reply: give "
-    "the user url)."
+    "running (still going), answered (answer holds the reply), waiting_for_input (Lemma needs "
+    "the user: give them url), or no_answer (the run ended without a reply: give the user url). "
+    "If it is still running, you are woken when it ends or after wake_after_minutes, as for "
+    "send_message; pass timeout_s=0 to only arm that."
 )
 DOWNLOAD_FILE = (
     "Save one of the conversation's files, by name or id, into a local directory. An existing "
@@ -48,7 +50,6 @@ DOWNLOAD_FILE = (
 class App:
     target: Target
     client: LemmaClient
-    watch: WatchList
     project_dir: Path
     open_browser: bool
 
@@ -58,7 +59,6 @@ class App:
         return cls(
             target=TARGET,
             client=LemmaClient(Session(TARGET, data_dir)),
-            watch=WatchList(data_dir),
             project_dir=Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd()),
             open_browser=os.environ.get("LEMMA_OPEN_BROWSER", "").lower() != "false",
         )
@@ -102,6 +102,7 @@ def build_server(app: App) -> MCPServer:
         model: Literal["normal", "pro", "pro_fast"] | None = None,
         plan_mode: bool = False,
         machine: Literal["standard", "enhanced", "high_performance", "max", "gpu"] | None = None,
+        wake_after_minutes: int = WAKE_AFTER_MINUTES,
     ) -> dict[str, Any]:
         is_new = conversation_id is None
         conversation_id = conversation_id or str(uuid.uuid4())
@@ -113,13 +114,6 @@ def build_server(app: App) -> MCPServer:
         if machine is not None:
             options["sandbox_type"] = machine
         run_id = await runs.send(app.client, conversation_id, content, file_ids, options)
-        app.watch.add(
-            WatchedRun(
-                conversation_id=conversation_id,
-                run_id=run_id,
-                project_dir=str(app.project_dir),
-            )
-        )
         url = app.target.conversation_url(conversation_id)
         if app.open_browser and is_new:
             webbrowser.open(url)
@@ -128,7 +122,10 @@ def build_server(app: App) -> MCPServer:
     @server.tool(description=WAIT_FOR_RESULT)
     @_reported
     async def wait_for_result(
-        conversation_id: str, run_id: str, timeout_s: int = MAX_WAIT_SECONDS
+        conversation_id: str,
+        run_id: str,
+        timeout_s: int = MAX_WAIT_SECONDS,
+        wake_after_minutes: int = WAKE_AFTER_MINUTES,
     ) -> dict[str, Any]:
         timeout = max(0, min(timeout_s, MAX_WAIT_SECONDS))
         return outcome(
