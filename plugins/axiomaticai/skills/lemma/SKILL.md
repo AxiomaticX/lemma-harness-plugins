@@ -22,24 +22,45 @@ ended. Everything they learn about Lemma comes from what you tell them.
 
 ## Hand work over
 
-Call `send_message` with the task written as you would brief a colleague: the goal, what you
-already know, and what a good result looks like.
+Start a conversation with `create_conversation`, writing the task as you would brief a
+colleague: the goal, what you already know, and what a good result looks like. Continue it with
+`send_message` and the conversation's id.
 
-- Leave out `conversation_id` to start a new conversation. To continue one, pass the id
-  `send_message` returned for it.
+- `mode` is required when you start: `act` to work straight away, or `plan` to have Lemma draft a
+  plan the user approves before any work runs. Use `plan` when the user asks for it, or for a
+  long or costly study they should shape first. A conversation keeps its mode; pass `mode` to
+  `send_message` only to change it.
+- `model`, `provider` and `machine` follow the user's defaults when left out. `list_options`
+  shows what the user can choose and what each machine costs. The machine is fixed once a
+  conversation starts. Choose any of these only when the user asks.
 - Pass local files in `files`, as paths. Relative paths resolve against the project directory.
   They are uploaded first and land in the conversation's workspace.
-- Use `model`, `plan_mode` and `machine` only when the user asks for them. `machine` takes
-  effect only when a conversation starts.
 
-`send_message` returns `conversation_id`, `run_id` and `url`. Keep all three.
+Both return `conversation_id`, `run_id` and `url`. Keep all three.
+
+## Decisions are the user's
+
+Lemma sometimes stops for a decision: a question in its plan, approval of the plan, a review of
+a finished task, or approval of a step mid-run. Each one is the user's to make. Put the question
+to them, with Lemma's default where it gave one, and act only on their answer. When the user has
+told you in advance how to decide, such as "use the defaults", say what you decided for them.
+
+## Plan mode
+
+A run in plan mode ends with a draft plan, not the work. After it:
+
+1. `get_plan` reads the plan: its tasks, the questions it asks with default answers, and the
+   finished tasks waiting for review. Tell the user what it plans and what it asks.
+2. `answer_plan` sends their answers, and with `approve` true approves the plan as answered.
+3. `run_plan` runs it: `all` runs every task until one needs the user, `next` just the next one.
+4. When a task finishes and waits for review, `review_task` approves, disapproves or waives it.
 
 ## Wait for the run
 
 Runs take minutes, and long ones take hours. Do not poll in a loop.
 
-- After `send_message`, you are woken when the run ends, so carry on with other work. If it is
-  still going after `wake_after_minutes` (60 by default), you are woken with word of that
+- After any call that starts a run, you are woken when the run ends, so carry on with other
+  work. If it is still going after `wake_after_minutes` (60 by default), you are woken with word of that
   instead. Call `wait_for_result` then to keep waiting, which arms the next wake-up.
 - Set `wake_after_minutes` higher only when you know the run will take hours, such as a long
   simulation or a whole plan.
@@ -53,7 +74,7 @@ Runs take minutes, and long ones take hours. Do not poll in a loop.
 | --- | --- | --- |
 | `answered` | The run ended with a reply. | Use `answer`. |
 | `running` | Still working. | Carry on; you are woken when it ends. |
-| `waiting_for_input` | Lemma needs a decision only the user can make. | Give the user `url` to answer it in the browser. |
+| `waiting_for_input` | Lemma needs a decision only the user can make; `questions` holds it. | Ask the user, then `answer_questions` with their decision. In plan mode, check `get_plan` for reviews too. |
 | `no_answer` | The run ended without a reply. | Give the user `url` to see what happened. |
 
 Only one run can be active in a conversation. If `send_message` says the conversation is busy,

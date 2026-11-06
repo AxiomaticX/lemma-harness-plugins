@@ -65,6 +65,9 @@ def raise_for_status(response: httpx.Response) -> None:
                 _server_detail(response) or "Lemma has no such conversation, run or file."
             )
         case 409:
+            refused = _server_detail(response)
+            if refused and "in progress" not in refused:
+                raise LemmaError(f"Lemma refused this: {refused}")
             raise BusyError()
         case 429:
             raise UsageLimitError()

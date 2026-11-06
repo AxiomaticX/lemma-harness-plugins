@@ -14,7 +14,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from .auth import Session
-from .client import LemmaClient, runs
+from .client import LemmaClient, options, plan, runs
 from .client import files as remote_files
 from .config import TARGET, Target
 from .errors import LemmaError
@@ -23,23 +23,59 @@ MAX_WAIT_SECONDS = 600
 WAKE_AFTER_MINUTES = 60
 
 INSTRUCTIONS = (
-    "Lemma is Axiomatic's research and engineering agent. Send it a task with send_message. "
-    "Runs take minutes to hours; you are woken when the run ends, so carry on meanwhile."
+    "Lemma is Axiomatic's research and engineering agent. Start a conversation with "
+    "create_conversation, and continue it with send_message. Runs take minutes to hours; you "
+    "are woken when a run ends, so carry on meanwhile."
+)
+WAKE = (
+    "You are woken when the run ends, or after wake_after_minutes (default 60) with word that it "
+    "is still running; set it higher only when you know the run will take hours."
+)
+CREATE_CONVERSATION = (
+    "Start a new Lemma conversation with its first message. mode is act (work straight away) or "
+    "plan (draft a plan for the user to approve first). model and provider choose the model "
+    "(see list_options), and machine the computer it runs on, which is fixed for the whole "
+    "conversation; leave them out for the user's defaults. files are local file paths, uploaded "
+    "into the conversation first. Returns at once with the run id. " + WAKE
 )
 SEND_MESSAGE = (
-    "Send a message to Lemma, starting a new conversation unless conversation_id is given. "
-    "files are local file paths, uploaded and added to the conversation first. machine applies "
-    "to a new conversation only. Returns at once with the run id. You are woken when the run "
-    "ends, or after wake_after_minutes (default 60) with word that it is still running; set it "
-    "higher only when you know the run will take hours."
+    "Send the next message in a Lemma conversation. mode, model and provider change the "
+    "conversation's own for this and later turns; leave them out to keep them. files are local "
+    "file paths, uploaded into the conversation first. Returns at once with the run id. " + WAKE
 )
 WAIT_FOR_RESULT = (
     "Wait up to timeout_s seconds (at most 600) for a run to finish, then report it. outcome is "
-    "running (still going), answered (answer holds the reply), waiting_for_input (Lemma needs "
-    "the user: give them url), or no_answer (the run ended without a reply: give the user url). "
-    "If it is still running, you are woken when it ends or after wake_after_minutes, as for "
-    "send_message; pass timeout_s=0 to only arm that."
+    "running (still going), answered (answer holds the reply), waiting_for_input (questions "
+    "holds what Lemma needs decided: ask the user, then answer_questions), or no_answer (the run "
+    "ended without a reply: give the user url). If it is still running, you are woken when it "
+    "ends or after wake_after_minutes, as for send_message; pass timeout_s=0 to only arm that."
 )
+ANSWER_QUESTIONS = (
+    "Answer what a run stopped on: one entry per question id, with approved true or false and a "
+    "reason. Only answer as the user decided. The conversation goes on in a new run, whose id "
+    "comes back. " + WAKE
+)
+GET_PLAN = (
+    "Read a plan-mode conversation's plan: its tasks, the questions it asks with their default "
+    "answers, and the finished tasks waiting for the user's review."
+)
+ANSWER_PLAN = (
+    "Answer the plan's questions, as a map of question id to answer, and with approve true "
+    "approve the plan as answered. Only answer and approve as the user decided."
+)
+REVIEW_TASK = (
+    "Decide a finished task that waits on review: approve, disapprove or waive, with a reason. "
+    "Only decide as the user decided."
+)
+RUN_PLAN = (
+    "Run an approved plan: scope next for its next task, or all for every task until one needs "
+    "the user. Returns at once with the run id. " + WAKE
+)
+
+Mode = Literal["act", "plan"]
+Provider = Literal["anthropic", "google", "open"]
+Model = Literal["normal", "pro", "pro_fast"]
+Machine = Literal["standard", "enhanced", "high_performance", "max", "gpu"]
 DOWNLOAD_FILE = (
     "Save one of the conversation's files, by name or id, into a local directory. An existing "
     "file is never overwritten; the saved path is returned."
@@ -90,34 +126,108 @@ def build_server(app: App) -> MCPServer:
         return {
             "outcome": ended.outcome,
             "answer": ended.answer,
+            "questions": list(ended.questions),
             "url": app.target.conversation_url(conversation_id),
         }
+
+    def started(conversation_id: str, run_id: str) -> dict[str, Any]:
+        url = app.target.conversation_url(conversation_id)
+        return {"conversation_id": conversation_id, "run_id": run_id, "url": url}
+
+    async def send(
+        conversation_id: str, content: str, files: list[str] | None, settings: dict[str, Any]
+    ) -> str:
+        paths = [app.local_path(p) for p in files or []]
+        file_ids = await remote_files.upload(app.client, paths) if paths else []
+        chosen = {key: value for key, value in settings.items() if value is not None}
+        return await runs.send(app.client, conversation_id, content, file_ids, chosen)
+
+    @server.tool(description=CREATE_CONVERSATION)
+    @_reported
+    async def create_conversation(
+        content: str,
+        mode: Mode,
+        model: Model | None = None,
+        provider: Provider | None = None,
+        machine: Machine | None = None,
+        files: list[str] | None = None,
+        wake_after_minutes: int = WAKE_AFTER_MINUTES,
+    ) -> dict[str, Any]:
+        conversation_id = str(uuid.uuid4())
+        run_id = await send(
+            conversation_id,
+            content,
+            files,
+            {"mode": mode, "model": model, "model_family": provider, "sandbox_type": machine},
+        )
+        if app.open_browser:
+            webbrowser.open(app.target.conversation_url(conversation_id))
+        return started(conversation_id, run_id)
 
     @server.tool(description=SEND_MESSAGE)
     @_reported
     async def send_message(
+        conversation_id: str,
         content: str,
-        conversation_id: str | None = None,
+        mode: Mode | None = None,
+        model: Model | None = None,
+        provider: Provider | None = None,
         files: list[str] | None = None,
-        model: Literal["normal", "pro", "pro_fast"] | None = None,
-        plan_mode: bool = False,
-        machine: Literal["standard", "enhanced", "high_performance", "max", "gpu"] | None = None,
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
     ) -> dict[str, Any]:
-        is_new = conversation_id is None
-        conversation_id = conversation_id or str(uuid.uuid4())
-        paths = [app.local_path(p) for p in files or []]
-        file_ids = await remote_files.upload(app.client, paths) if paths else []
-        options: dict[str, Any] = {"plan_mode": plan_mode}
-        if model is not None:
-            options["model"] = model
-        if machine is not None:
-            options["sandbox_type"] = machine
-        run_id = await runs.send(app.client, conversation_id, content, file_ids, options)
-        url = app.target.conversation_url(conversation_id)
-        if app.open_browser and is_new:
-            webbrowser.open(url)
-        return {"conversation_id": conversation_id, "run_id": run_id, "url": url}
+        settings = {"mode": mode, "model": model, "model_family": provider}
+        return started(conversation_id, await send(conversation_id, content, files, settings))
+
+    @server.tool(description=ANSWER_QUESTIONS)
+    @_reported
+    async def answer_questions(
+        conversation_id: str,
+        run_id: str,
+        answers: list[dict[str, Any]],
+        wake_after_minutes: int = WAKE_AFTER_MINUTES,
+    ) -> dict[str, Any]:
+        resumed = await runs.answer(app.client, conversation_id, run_id, answers)
+        return started(conversation_id, resumed)
+
+    @server.tool()
+    @_reported
+    async def list_options() -> dict[str, Any]:
+        """The models (by provider) and machines the user can choose for a new conversation."""
+        return {
+            "models": await options.models(app.client),
+            "machines": await options.machines(app.client),
+        }
+
+    @server.tool(description=GET_PLAN)
+    @_reported
+    async def get_plan(conversation_id: str) -> dict[str, Any]:
+        return await plan.get(app.client, conversation_id)
+
+    @server.tool(description=ANSWER_PLAN)
+    @_reported
+    async def answer_plan(
+        conversation_id: str, answers: dict[str, str], approve: bool = False
+    ) -> dict[str, Any]:
+        return await plan.answer(app.client, conversation_id, answers, approve)
+
+    @server.tool(description=REVIEW_TASK)
+    @_reported
+    async def review_task(
+        conversation_id: str,
+        task_id: str,
+        decision: Literal["approve", "disapprove", "waive"],
+        reason: str = "",
+    ) -> dict[str, Any]:
+        return await plan.review(app.client, conversation_id, task_id, decision, reason)
+
+    @server.tool(description=RUN_PLAN)
+    @_reported
+    async def run_plan(
+        conversation_id: str,
+        scope: Literal["next", "all"] = "all",
+        wake_after_minutes: int = WAKE_AFTER_MINUTES,
+    ) -> dict[str, Any]:
+        return started(conversation_id, await plan.run(app.client, conversation_id, scope))
 
     @server.tool(description=WAIT_FOR_RESULT)
     @_reported
