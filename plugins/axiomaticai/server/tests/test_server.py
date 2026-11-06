@@ -103,6 +103,24 @@ async def test_a_new_conversation_starts_in_the_mode_model_and_machine_chosen(ap
     }
 
 
+async def test_a_workflow_starts_a_conversation_from_its_answers(app: App, api):
+    route = api.post(url__regex=r"https://api.test/conversations/[^/]+/messages").mock(
+        return_value=httpx.Response(202, json={"active": True, "run_id": "r1", "started_at": None})
+    )
+
+    result = _structured(
+        await build_server(app).call_tool(
+            "start_workflow", {"name": "survey_literature", "inputs": {"topic": "PINNs"}}
+        )
+    )
+
+    assert result["run_id"] == "r1"
+    assert json.loads(route.calls.last.request.content) == {
+        "file_ids": [],
+        "workflow": {"name": "survey_literature", "inputs": {"topic": "PINNs"}},
+    }
+
+
 async def test_a_message_that_names_no_mode_or_model_keeps_the_conversations(app: App, api):
     route = api.post("https://api.test/conversations/c1/messages").mock(
         return_value=httpx.Response(202, json={"active": True, "run_id": "r2", "started_at": None})

@@ -28,15 +28,16 @@ class RunResult:
 async def send(
     client: LemmaClient,
     conversation_id: str,
-    content: str,
+    content: str | None,
     file_ids: list[str],
     options: dict[str, Any],
 ) -> str:
     """Start the conversation's next run with one message; returns the run id."""
+    message = {"content": content} if content is not None else {}
     response = await client.request(
         "POST",
         f"/conversations/{conversation_id}/messages",
-        json={"content": content, "file_ids": file_ids, **options},
+        json={**message, "file_ids": file_ids, **options},
         timeout=httpx.Timeout(30.0, read=SEND_READ_TIMEOUT_SECONDS),
     )
     return response.json()["run_id"]
