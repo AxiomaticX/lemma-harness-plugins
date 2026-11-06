@@ -1,0 +1,8 @@
+[
+  {
+    "name": "lemma-runs",
+    "command": "UV_PROJECT_ENVIRONMENT=\"${CLAUDE_PLUGIN_DATA}/venv\" uv run --frozen --quiet --project \"${CLAUDE_PLUGIN_ROOT}/server\" lemma-watch --data-dir \"${CLAUDE_PLUGIN_DATA}\" --project-dir \"${CLAUDE_PROJECT_DIR}\"",
+    "description": "Lemma runs started from this project that have finished",
+    "when": "always"
+  }
+]

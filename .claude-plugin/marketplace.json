@@ -1,0 +1,15 @@
+{
+  "name": "axiomatic-ai",
+  "owner": {
+    "name": "Axiomatic AI",
+    "email": "developers@axiomatic-ai.com"
+  },
+  "description": "Axiomatic AI plugins for agent harnesses",
+  "plugins": [
+    {
+      "name": "axiomaticai",
+      "source": "./plugins/axiomaticai",
+      "category": "engineering"
+    }
+  ]
+}

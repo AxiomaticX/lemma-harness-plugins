@@ -1,0 +1,81 @@
+"""The Lemma API, as the signed-in user."""
+
+from contextlib import asynccontextmanager
+from typing import Any
+
+import httpx
+
+from ..auth import Session
+from ..errors import BusyError, LemmaError, NotFoundError, NotLoggedInError, UsageLimitError
+
+TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+
+
+class LemmaClient:
+    """Bearer-authenticated calls with one refresh-and-retry on 401."""
+
+    def __init__(self, session: Session, http: httpx.AsyncClient | None = None) -> None:
+        self.session = session
+        self.target = session.target
+        self._http = http or httpx.AsyncClient(base_url=self.target.api_url, timeout=TIMEOUT)
+
+    async def request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        response = await self._send(method, path, await self.session.access_token(), **kwargs)
+        if response.status_code == 401:
+            response = await self._send(method, path, await self.session.refresh(), **kwargs)
+        raise_for_status(response)
+        return response
+
+    @asynccontextmanager
+    async def stream(self, method: str, path: str, **kwargs: Any):
+        token = await self.session.access_token()
+        async with self._http.stream(method, path, headers=_bearer(token), **kwargs) as response:
+            if response.status_code != 401:
+                await _raise_streamed(response)
+                yield response
+                return
+        token = await self.session.refresh()
+        async with self._http.stream(method, path, headers=_bearer(token), **kwargs) as response:
+            await _raise_streamed(response)
+            yield response
+
+    async def _send(self, method: str, path: str, token: str, **kwargs: Any) -> httpx.Response:
+        return await self._http.request(method, path, headers=_bearer(token), **kwargs)
+
+
+def _bearer(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def _raise_streamed(response: httpx.Response) -> None:
+    if response.is_error:
+        await response.aread()
+        raise_for_status(response)
+
+
+def raise_for_status(response: httpx.Response) -> None:
+    """Lemma's error responses as the errors the tools report."""
+    if not response.is_error:
+        return
+    match response.status_code:
+        case 401:
+            raise NotLoggedInError("Lemma did not accept the sign-in. Call the login tool.")
+        case 404:
+            raise NotFoundError(
+                _server_detail(response) or "Lemma has no such conversation, run or file."
+            )
+        case 409:
+            raise BusyError()
+        case 429:
+            raise UsageLimitError()
+    found = _server_detail(response) or f"HTTP {response.status_code}"
+    raise LemmaError(f"Lemma returned an error: {found}")
+
+
+def _server_detail(response: httpx.Response) -> str | None:
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    found = body.get("detail") if isinstance(body, dict) else None
+    return found if isinstance(found, str) else None
