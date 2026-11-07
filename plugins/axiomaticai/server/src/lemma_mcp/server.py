@@ -7,7 +7,7 @@ import webbrowser
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, NotRequired, TypedDict
 
 import httpx
 from mcp.server.mcpserver import MCPServer
@@ -33,9 +33,10 @@ WAKE = (
 )
 CREATE_CONVERSATION = (
     "Start a new Lemma conversation with its first message. mode is act (work straight away) or "
-    "plan (draft a plan for the user to approve first). model and provider choose the model "
-    "(see list_options), and machine the computer it runs on, which is fixed for the whole "
-    "conversation; leave them out for the user's defaults. files are local file paths, uploaded "
+    "plan (draft a plan for the user to approve first). model is the tier and provider who runs "
+    "it; list_options shows the tiers the user has and the ones each provider runs. machine is "
+    "the computer it runs on, fixed for the whole conversation. Whatever is left out comes from "
+    "the user's defaults. files are local file paths, uploaded "
     "into the conversation first. Returns at once with the run id. " + WAKE
 )
 SEND_MESSAGE = (
@@ -51,9 +52,9 @@ WAIT_FOR_RESULT = (
     "ends or after wake_after_minutes, as for send_message; pass timeout_s=0 to only arm that."
 )
 ANSWER_QUESTIONS = (
-    "Answer what a run stopped on: one entry per question id, with approved true or false and a "
-    "reason. Only answer as the user decided. The conversation goes on in a new run, whose id "
-    "comes back. " + WAKE
+    "Answer what a run stopped on: one entry per question, each with the question's id, approved "
+    "true or false, and a reason. Only answer as the user decided. The conversation goes on in a "
+    "new run, whose id comes back. " + WAKE
 )
 GET_PLAN = (
     "Read a plan-mode conversation's plan: its tasks, the questions it asks with their default "
@@ -61,7 +62,8 @@ GET_PLAN = (
 )
 ANSWER_PLAN = (
     "Answer the plan's questions, as a map of question id to answer, and with approve true "
-    "approve the plan as answered. Only answer and approve as the user decided."
+    "approve the plan as answered. Answering puts an approved plan back to draft, so it needs "
+    "approve true again before it runs. Only answer and approve as the user decided."
 )
 REVIEW_TASK = (
     "Decide a finished task that waits on review: approve, disapprove or waive, with a reason. "
@@ -79,6 +81,13 @@ START_WORKFLOW = (
     "id. " + WAKE
 )
 
+
+class Answer(TypedDict):
+    id: str
+    approved: bool
+    reason: NotRequired[str]
+
+
 Mode = Literal["act", "plan"]
 Provider = Literal["anthropic", "google", "open"]
 Model = Literal["normal", "pro", "pro_fast"]
@@ -89,6 +98,11 @@ DOWNLOAD_FILE = (
 )
 
 
+PROVIDER_TIERS: dict[str, tuple[str, ...]] = {
+    "anthropic": ("pro_fast", "pro", "normal"),
+    "google": ("pro", "normal"),
+    "open": ("pro", "normal"),
+}
 MODEL_CHOICES: dict[str, tuple[str, str]] = {
     "Anthropic · Pro Fast": ("anthropic", "pro_fast"),
     "Anthropic · Pro": ("anthropic", "pro"),
@@ -132,8 +146,9 @@ class App:
         self, model: str | None, provider: str | None, machine: str | None
     ) -> dict[str, Any]:
         """A new conversation's model and machine: what Claude named, else the user's defaults."""
-        if model is None and provider is None and self.default_model is not None:
-            provider, model = self.default_model
+        if self.default_model is not None:
+            provider = provider or self.default_model[0]
+            model = model or self.default_model[1]
         return {
             "model": model,
             "provider": provider,
@@ -227,18 +242,24 @@ def build_server(app: App) -> MCPServer:
     async def answer_questions(
         conversation_id: str,
         run_id: str,
-        answers: list[dict[str, Any]],
+        answers: list[Answer],
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
     ) -> dict[str, Any]:
-        resumed = await runs.answer(app.client, conversation_id, run_id, answers)
+        resumed = await runs.answer(app.client, conversation_id, run_id, list(map(dict, answers)))
         return started(conversation_id, resumed)
 
     @server.tool()
     @_reported
     async def list_options() -> dict[str, Any]:
-        """The model tiers (empty: no choice) and machines the user can pick for a conversation."""
+        """The model tiers (empty: no choice), the tiers each provider runs, and the machines."""
+        models = await options.models(app.client)
+        tiers = [model["key"] for model in models]
         return {
-            "models": await options.models(app.client),
+            "models": models,
+            "providers": {
+                provider: [tier for tier in tiers if tier in runs_on]
+                for provider, runs_on in PROVIDER_TIERS.items()
+            },
             "machines": await options.machines(app.client),
         }
 
