@@ -36,6 +36,9 @@ Or by hand, in Claude Code:
 The install asks whether to open each new conversation in the browser (on by default). Change
 it later with `/plugin configure axiomaticai@axiomatic-ai`.
 
+The plugin talks to production Lemma. To use staging, set its `environment` option to `staging`
+with `/plugin configure axiomaticai@axiomatic-ai`, or install with `--config environment=staging`.
+
 ## Sign in
 
 The first Lemma tool call opens the browser to sign in to Lemma with your usual account. The

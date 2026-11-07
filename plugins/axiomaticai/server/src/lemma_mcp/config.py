@@ -16,11 +16,29 @@ class Target:
         return f"{self.web_url}/en/lemma/{conversation_id}"
 
 
-TARGET = Target(
-    name="production",
-    domain="auth.axiomatic-ai.com",
-    client_id="R1t8IDixr1T4cY9haA3CwuCrwZggu3cC",
-    audience="https://api.axiomatic-ai.com",
-    api_url="https://api.axiomatic-ai.com",
-    web_url="https://lemma.axiomatic.ai",
-)
+TARGETS = {
+    "production": Target(
+        name="production",
+        domain="auth.axiomatic-ai.com",
+        client_id="R1t8IDixr1T4cY9haA3CwuCrwZggu3cC",
+        audience="https://api.axiomatic-ai.com",
+        api_url="https://api.axiomatic-ai.com",
+        web_url="https://lemma.axiomatic.ai",
+    ),
+    "staging": Target(
+        name="staging",
+        domain="auth.staging.axiomatic-ai.com",
+        client_id="6migihYWWtTdPl6WLWyaPpCjJ4XJrFr3",
+        audience="https://api.staging.axiomatic-ai.com",
+        api_url="https://api.staging.axiomatic-ai.com",
+        web_url="https://lemma.staging.axiomatic.ai",
+    ),
+}
+
+
+def target(name: str | None) -> Target:
+    """The named environment, production when unset."""
+    key = (name or "production").strip().lower()
+    if key not in TARGETS:
+        raise ValueError(f"Unknown Lemma environment {name!r}; use one of {', '.join(TARGETS)}.")
+    return TARGETS[key]

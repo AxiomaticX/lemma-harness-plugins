@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -11,7 +12,7 @@ from typing import Any
 from .auth import Session
 from .client import LemmaClient
 from .client.runs import RUNNING, wait
-from .config import TARGET
+from .config import target
 from .errors import NotFoundError, NotLoggedInError
 
 DEFAULT_MINUTES = 60
@@ -95,6 +96,7 @@ def main() -> None:
     found = hook_run(json.load(sys.stdin))
     if found is None:
         return
-    client = LemmaClient(Session(TARGET, args.data_dir, interactive=False))
+    lemma = target(os.environ.get("CLAUDE_PLUGIN_OPTION_ENVIRONMENT"))
+    client = LemmaClient(Session(lemma, args.data_dir, interactive=False))
     print(asyncio.run(follow(client, *found)), flush=True)
     sys.exit(WAKE_CLAUDE)
