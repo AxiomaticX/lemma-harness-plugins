@@ -98,7 +98,7 @@ async def test_a_new_conversation_starts_in_the_mode_model_and_machine_chosen(ap
         "file_ids": [],
         "mode": "plan",
         "model": "pro",
-        "model_family": "google",
+        "provider": "google",
         "sandbox_type": "gpu",
     }
 
@@ -119,12 +119,12 @@ async def test_a_new_conversation_starts_on_the_users_defaults_unless_claude_nam
     )
     named = json.loads(route.calls.last.request.content)
 
-    assert (defaulted["model"], defaulted["model_family"], defaulted["sandbox_type"]) == (
+    assert (defaulted["model"], defaulted["provider"], defaulted["sandbox_type"]) == (
         "pro",
         "google",
         "gpu",
     )
-    assert (named["model"], named.get("model_family"), named["sandbox_type"]) == (
+    assert (named["model"], named.get("provider"), named["sandbox_type"]) == (
         "normal",
         None,
         "standard",

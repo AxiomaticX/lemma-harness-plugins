@@ -6,8 +6,8 @@ from . import LemmaClient
 
 
 async def models(client: LemmaClient) -> list[dict[str, Any]]:
-    """Each provider the user can run on, with the model tiers they can pick on it."""
-    return (await client.request("GET", "/users/me/available-model-families")).json()
+    """The model tiers the user can pick, their default marked; empty when they have no choice."""
+    return (await client.request("GET", "/users/me/available-models")).json()
 
 
 async def workflows(client: LemmaClient) -> list[dict[str, Any]]:
