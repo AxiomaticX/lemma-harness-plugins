@@ -9,6 +9,13 @@
   },
   "keywords": ["axiomatic", "lemma"],
   "userConfig": {
+    "environment": {
+      "type": "string",
+      "title": "Lemma environment",
+      "description": "Which Lemma to use. Sign-in and conversations are separate per environment.",
+      "options": ["production", "staging"],
+      "default": "production"
+    },
     "open_browser": {
       "type": "boolean",
       "title": "Open conversations in the browser",
