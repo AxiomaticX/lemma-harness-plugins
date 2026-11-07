@@ -89,12 +89,32 @@ DOWNLOAD_FILE = (
 )
 
 
+MODEL_CHOICES: dict[str, tuple[str, str]] = {
+    "Anthropic · Pro Fast": ("anthropic", "pro_fast"),
+    "Anthropic · Pro": ("anthropic", "pro"),
+    "Anthropic · Normal": ("anthropic", "normal"),
+    "Google · Pro": ("google", "pro"),
+    "Google · Normal": ("google", "normal"),
+    "Open-weight · Pro": ("open", "pro"),
+    "Open-weight · Normal": ("open", "normal"),
+}
+MACHINE_CHOICES: dict[str, str] = {
+    "Standard": "standard",
+    "Enhanced": "enhanced",
+    "High performance": "high_performance",
+    "Max": "max",
+    "GPU": "gpu",
+}
+
+
 @dataclass
 class App:
     target: Target
     client: LemmaClient
     project_dir: Path
     open_browser: bool
+    default_model: tuple[str, str] | None = None
+    default_machine: str | None = None
 
     @classmethod
     def from_env(cls) -> "App":
@@ -104,7 +124,21 @@ class App:
             client=LemmaClient(Session(TARGET, data_dir)),
             project_dir=Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd()),
             open_browser=os.environ.get("LEMMA_OPEN_BROWSER", "").lower() != "false",
+            default_model=MODEL_CHOICES.get(os.environ.get("LEMMA_DEFAULT_MODEL", "")),
+            default_machine=MACHINE_CHOICES.get(os.environ.get("LEMMA_DEFAULT_MACHINE", "")),
         )
+
+    def starting(
+        self, model: str | None, provider: str | None, machine: str | None
+    ) -> dict[str, Any]:
+        """A new conversation's model and machine: what Claude named, else the user's defaults."""
+        if model is None and provider is None and self.default_model is not None:
+            provider, model = self.default_model
+        return {
+            "model": model,
+            "model_family": provider,
+            "sandbox_type": machine or self.default_machine,
+        }
 
     def local_path(self, raw: str) -> Path:
         path = Path(raw).expanduser()
@@ -168,7 +202,7 @@ def build_server(app: App) -> MCPServer:
             conversation_id,
             content,
             files,
-            {"mode": mode, "model": model, "model_family": provider, "sandbox_type": machine},
+            {"mode": mode, **app.starting(model, provider, machine)},
         )
         if app.open_browser:
             webbrowser.open(app.target.conversation_url(conversation_id))
@@ -250,9 +284,7 @@ def build_server(app: App) -> MCPServer:
         conversation_id = str(uuid.uuid4())
         settings = {
             "workflow": {"name": name, "inputs": inputs or {}},
-            "model": model,
-            "model_family": provider,
-            "sandbox_type": machine,
+            **app.starting(model, provider, machine),
         }
         run_id = await send(conversation_id, None, files, settings)
         if app.open_browser:

@@ -14,6 +14,18 @@
       "title": "Open conversations in the browser",
       "description": "Open each new conversation in your browser as soon as a message is sent.",
       "default": true
+    },
+    "default_model": {
+      "type": "string",
+      "title": "Default model",
+      "description": "The model a new conversation starts on when Claude names none, as the model picker shows it: Anthropic · Pro Fast, Anthropic · Pro, Anthropic · Normal, Google · Pro, Google · Normal, Open-weight · Pro or Open-weight · Normal. Left empty, Lemma uses the model it would in the browser."
+    },
+    "default_machine": {
+      "type": "string",
+      "title": "Default machine",
+      "description": "The machine a new conversation runs on when Claude names none.",
+      "options": ["Standard", "Enhanced", "High performance", "Max", "GPU"],
+      "default": "Standard"
     }
   }
 }

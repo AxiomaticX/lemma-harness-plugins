@@ -6,7 +6,9 @@
       "env": {
         "UV_PROJECT_ENVIRONMENT": "${CLAUDE_PLUGIN_DATA}/venv",
         "LEMMA_DATA_DIR": "${CLAUDE_PLUGIN_DATA}",
-        "LEMMA_OPEN_BROWSER": "${user_config.open_browser}"
+        "LEMMA_OPEN_BROWSER": "${user_config.open_browser}",
+        "LEMMA_DEFAULT_MODEL": "${user_config.default_model}",
+        "LEMMA_DEFAULT_MACHINE": "${user_config.default_machine}"
       }
     }
   }
