@@ -18,7 +18,18 @@
     "default_model": {
       "type": "string",
       "title": "Default model",
-      "description": "The model a new conversation starts on when Claude names none, as the model picker shows it: Anthropic · Pro Fast, Anthropic · Pro, Anthropic · Normal, Google · Pro, Google · Normal, Open-weight · Pro or Open-weight · Normal. Left empty, Lemma uses the model it would in the browser."
+      "description": "The model a new conversation starts on when Claude names none. Lemma's default is the model it would use in the browser.",
+      "options": [
+        "Lemma's default",
+        "Anthropic · Pro Fast",
+        "Anthropic · Pro",
+        "Anthropic · Normal",
+        "Google · Pro",
+        "Google · Normal",
+        "Open-weight · Pro",
+        "Open-weight · Normal"
+      ],
+      "default": "Lemma's default"
     },
     "default_machine": {
       "type": "string",

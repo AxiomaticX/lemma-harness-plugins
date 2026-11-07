@@ -30,9 +30,11 @@ colleague: the goal, what you already know, and what a good result looks like. C
   plan the user approves before any work runs. Use `plan` when the user asks for it, or for a
   long or costly study they should shape first. A conversation keeps its mode; pass `mode` to
   `send_message` only to change it.
-- `model`, `provider` and `machine` follow the user's defaults when left out. `list_options`
-  shows what the user can choose and what each machine costs. The machine is fixed once a
-  conversation starts. Choose any of these only when the user asks.
+- `model` is the tier and `provider` who runs it. Left out when you start, `model`, `provider`
+  and `machine` come from the user's defaults; left out of `send_message`, the conversation
+  keeps its own. `list_options` shows the tiers the user can choose, the tiers each provider
+  runs, and what each machine costs. The machine is fixed once a conversation starts. Choose
+  any of these only when the user asks.
 - Pass local files in `files`, as paths. Relative paths resolve against the project directory.
   They are uploaded first and land in the conversation's workspace.
 
@@ -60,6 +62,7 @@ A run in plan mode ends with a draft plan, not the work. After it:
 1. `get_plan` reads the plan: its tasks, the questions it asks with default answers, and the
    finished tasks waiting for review. Tell the user what it plans and what it asks.
 2. `answer_plan` sends their answers, and with `approve` true approves the plan as answered.
+   Answering puts an approved plan back to draft, so approve it again before running it.
 3. `run_plan` runs it: `all` runs every task until one needs the user, `next` just the next one.
 4. When a task finishes and waits for review, `review_task` approves, disapproves or waives it.
 

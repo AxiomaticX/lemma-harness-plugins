@@ -124,9 +124,9 @@ async def test_a_new_conversation_starts_on_the_users_defaults_unless_claude_nam
         "google",
         "gpu",
     )
-    assert (named["model"], named.get("provider"), named["sandbox_type"]) == (
+    assert (named["model"], named["provider"], named["sandbox_type"]) == (
         "normal",
-        None,
+        "google",
         "standard",
     )
 
@@ -136,6 +136,7 @@ async def test_a_new_conversation_starts_on_the_users_defaults_unless_claude_nam
     [
         ("Open-weight · Normal", "High performance", (("open", "normal"), "high_performance")),
         ("", "", (None, None)),
+        ("Lemma's default", "Standard", (None, "standard")),
     ],
 )
 def test_the_install_options_become_the_defaults(
@@ -192,6 +193,61 @@ async def test_an_answer_goes_on_in_a_new_run(app: App, api):
 
     assert result["run_id"] == "r2"
     assert json.loads(route.calls.last.request.content) == {"answers": answers}
+
+
+async def test_the_options_say_which_tiers_each_provider_runs(app: App, api):
+    api.get("https://api.test/users/me/available-models").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {"key": "pro_fast", "name": "Pro Fast", "is_default": False},
+                {"key": "pro", "name": "Pro", "is_default": True},
+            ],
+        )
+    )
+    api.get("https://api.test/users/me/available-sandbox-types").mock(
+        return_value=httpx.Response(200, json=[])
+    )
+
+    result = _structured(await build_server(app).call_tool("list_options", {}))
+
+    assert result["providers"] == {
+        "anthropic": ["pro_fast", "pro"],
+        "google": ["pro"],
+        "open": ["pro"],
+    }
+
+
+async def test_a_refused_field_is_named_in_the_error(app: App, api):
+    api.post("https://api.test/conversations/c1/runs/r1/answers").mock(
+        return_value=httpx.Response(
+            422,
+            json={"detail": [{"loc": ["body", "answers", 0, "id"], "msg": "Field required"}]},
+        )
+    )
+
+    with pytest.raises(ToolError, match=r"answers\.0\.id: Field required"):
+        await build_server(app).call_tool(
+            "answer_questions",
+            {"conversation_id": "c1", "run_id": "r1", "answers": [{"id": "q", "approved": True}]},
+        )
+
+
+async def test_a_plan_answer_that_fails_says_which_were_saved(app: App, api):
+    api.get("https://api.test/conversations/c1/plan").mock(
+        return_value=httpx.Response(200, json={"revision": 1})
+    )
+    api.put("https://api.test/conversations/c1/plan/questions/q1").mock(
+        return_value=httpx.Response(200, json={"revision": 2})
+    )
+    api.put("https://api.test/conversations/c1/plan/questions/q2").mock(
+        return_value=httpx.Response(404, json={"detail": "No question q2."})
+    )
+
+    with pytest.raises(ToolError, match="Answers saved before it: q1"):
+        await build_server(app).call_tool(
+            "answer_plan", {"conversation_id": "c1", "answers": {"q1": "yes", "q2": "no"}}
+        )
 
 
 async def test_a_lemma_failure_reaches_the_agent_as_its_own_message(app: App, api):

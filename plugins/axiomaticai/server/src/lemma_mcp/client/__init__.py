@@ -81,4 +81,12 @@ def _server_detail(response: httpx.Response) -> str | None:
     except ValueError:
         return None
     found = body.get("detail") if isinstance(body, dict) else None
+    if isinstance(found, list):
+        found = "; ".join(_field_error(item) for item in found if isinstance(item, dict)) or None
     return found if isinstance(found, str) else None
+
+
+def _field_error(item: dict) -> str:
+    """One of FastAPI's validation errors, as `field: message`."""
+    where = ".".join(str(part) for part in (item.get("loc") or [])[1:])
+    return f"{where}: {item.get('msg')}" if where else str(item.get("msg"))

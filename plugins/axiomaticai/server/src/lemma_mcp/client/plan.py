@@ -4,6 +4,7 @@ from typing import Any
 
 import httpx
 
+from ..errors import LemmaError
 from . import LemmaClient
 from .runs import SEND_READ_TIMEOUT_SECONDS
 
@@ -21,14 +22,19 @@ async def answer(
 ) -> dict[str, Any]:
     """Answer the plan's questions in turn, then approve what they produced if asked to."""
     plan = await get(client, conversation_id)
+    answered: list[str] = []
     for question_id, text in answers.items():
-        plan = (
-            await client.request(
+        try:
+            response = await client.request(
                 "PUT",
                 _path(conversation_id, f"/questions/{question_id}"),
                 json={"answer": text, "revision": plan["revision"]},
             )
-        ).json()
+        except LemmaError as e:
+            saved = ", ".join(answered) or "none"
+            raise LemmaError(f"{e} Answers saved before it: {saved}.") from e
+        plan = response.json()
+        answered.append(question_id)
     if approve:
         plan = (
             await client.request(
