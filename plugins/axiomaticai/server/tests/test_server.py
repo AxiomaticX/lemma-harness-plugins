@@ -103,6 +103,53 @@ async def test_a_new_conversation_starts_in_the_mode_model_and_machine_chosen(ap
     }
 
 
+async def test_a_new_conversation_starts_on_the_users_defaults_unless_claude_names_others(
+    app: App, api
+):
+    route = api.post(url__regex=r"https://api.test/conversations/[^/]+/messages").mock(
+        return_value=httpx.Response(202, json={"active": True, "run_id": "r1", "started_at": None})
+    )
+    server = build_server(replace(app, default_model=("google", "pro"), default_machine="gpu"))
+
+    await server.call_tool("create_conversation", {"content": "go", "mode": "act"})
+    defaulted = json.loads(route.calls.last.request.content)
+    await server.call_tool(
+        "create_conversation",
+        {"content": "go", "mode": "act", "model": "normal", "machine": "standard"},
+    )
+    named = json.loads(route.calls.last.request.content)
+
+    assert (defaulted["model"], defaulted["model_family"], defaulted["sandbox_type"]) == (
+        "pro",
+        "google",
+        "gpu",
+    )
+    assert (named["model"], named.get("model_family"), named["sandbox_type"]) == (
+        "normal",
+        None,
+        "standard",
+    )
+
+
+@pytest.mark.parametrize(
+    ("model", "machine", "expected"),
+    [
+        ("Open-weight · Normal", "High performance", (("open", "normal"), "high_performance")),
+        ("", "", (None, None)),
+    ],
+)
+def test_the_install_options_become_the_defaults(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, model, machine, expected
+):
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("LEMMA_DEFAULT_MODEL", model)
+    monkeypatch.setenv("LEMMA_DEFAULT_MACHINE", machine)
+
+    app = App.from_env()
+
+    assert (app.default_model, app.default_machine) == expected
+
+
 async def test_a_workflow_starts_a_conversation_from_its_answers(app: App, api):
     route = api.post(url__regex=r"https://api.test/conversations/[^/]+/messages").mock(
         return_value=httpx.Response(202, json={"active": True, "run_id": "r1", "started_at": None})
