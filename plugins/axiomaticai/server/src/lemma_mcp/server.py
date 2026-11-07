@@ -136,7 +136,7 @@ class App:
             provider, model = self.default_model
         return {
             "model": model,
-            "model_family": provider,
+            "provider": provider,
             "sandbox_type": machine or self.default_machine,
         }
 
@@ -219,7 +219,7 @@ def build_server(app: App) -> MCPServer:
         files: list[str] | None = None,
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
     ) -> dict[str, Any]:
-        settings = {"mode": mode, "model": model, "model_family": provider}
+        settings = {"mode": mode, "model": model, "provider": provider}
         return started(conversation_id, await send(conversation_id, content, files, settings))
 
     @server.tool(description=ANSWER_QUESTIONS)
@@ -236,7 +236,7 @@ def build_server(app: App) -> MCPServer:
     @server.tool()
     @_reported
     async def list_options() -> dict[str, Any]:
-        """The models (by provider) and machines the user can choose for a new conversation."""
+        """The model tiers (empty: no choice) and machines the user can pick for a conversation."""
         return {
             "models": await options.models(app.client),
             "machines": await options.machines(app.client),
