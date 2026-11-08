@@ -57,8 +57,33 @@ ANSWER_QUESTIONS = (
     "new run, whose id comes back. " + WAKE
 )
 GET_PLAN = (
-    "Read a plan-mode conversation's plan: its tasks, the questions it asks with their default "
-    "answers, and the finished tasks waiting for the user's review."
+    "Read a plan-mode conversation's plan: its revision, its tasks with their dependencies and "
+    "checks, the questions it asks with their default answers, and the finished tasks waiting "
+    "for the user's review."
+)
+EDIT_PLAN = (
+    "Replace a plan's overview and tasks with the user's edit. Pass the revision get_plan "
+    "returned; if the plan has changed since, the edit is refused, so read it again. tasks is "
+    "the whole list: a task with its id is changed and keeps its answers and progress, one "
+    "without an id is added, and one left out is removed. depends_on takes task ids, or numbers "
+    "counting from 1 in this list. validation and verification take checks as get_plan shows "
+    "them. The edited plan needs approving again. Only edit as the user decided."
+)
+DELETE_TASK = (
+    "Delete a task from the plan, and the tasks that depend on it unless keep_dependents is "
+    "true. Only as the user decided."
+)
+REOPEN_TASK = (
+    "Reopen a task and every task that depends on it, discarding their results, so the next "
+    "run_plan does them again. Only as the user decided."
+)
+SET_TASK_CHECKS = (
+    "Turn a task's checks off (enabled false) so it runs without them and its result is "
+    "unverified, or back on. Only as the user decided."
+)
+RESTORE_PLAN_REVISION = (
+    "Make an earlier revision (see list_plan_revisions) the plan again. It needs approving "
+    "again. Only as the user decided."
 )
 ANSWER_PLAN = (
     "Answer the plan's questions, as a map of question id to answer, and with approve true "
@@ -86,6 +111,16 @@ class Answer(TypedDict):
     id: str
     approved: bool
     reason: NotRequired[str]
+
+
+class PlanTask(TypedDict):
+    id: NotRequired[str]
+    name: str
+    description: str
+    depends_on: NotRequired[list[str]]
+    validation: NotRequired[list[dict[str, Any]]]
+    verification: NotRequired[list[dict[str, Any]]]
+    evidence: NotRequired[list[dict[str, Any]]]
 
 
 Mode = Literal["act", "plan"]
@@ -286,6 +321,51 @@ def build_server(app: App) -> MCPServer:
     ) -> dict[str, Any]:
         return await plan.review(app.client, conversation_id, task_id, decision, reason)
 
+    @server.tool(description=EDIT_PLAN)
+    @_reported
+    async def edit_plan(
+        conversation_id: str, revision: int, overview: str, tasks: list[PlanTask]
+    ) -> dict[str, Any]:
+        return await plan.edit(
+            app.client, conversation_id, revision, overview, list(map(dict, tasks))
+        )
+
+    @server.tool(description=DELETE_TASK)
+    @_reported
+    async def delete_task(
+        conversation_id: str, task_id: str, keep_dependents: bool = False
+    ) -> dict[str, Any]:
+        return await plan.delete_task(app.client, conversation_id, task_id, keep_dependents)
+
+    @server.tool(description=REOPEN_TASK)
+    @_reported
+    async def reopen_task(conversation_id: str, task_id: str) -> dict[str, Any]:
+        return await plan.reopen_task(app.client, conversation_id, task_id)
+
+    @server.tool(description=SET_TASK_CHECKS)
+    @_reported
+    async def set_task_checks(conversation_id: str, task_id: str, enabled: bool) -> dict[str, Any]:
+        return await plan.set_task_checks(app.client, conversation_id, task_id, enabled)
+
+    @server.tool()
+    @_reported
+    async def list_plan_revisions(conversation_id: str) -> list[dict[str, Any]]:
+        """The plan's saved revisions, oldest first: who wrote each, and which were approved."""
+        return await plan.revisions(app.client, conversation_id)
+
+    @server.tool(description=RESTORE_PLAN_REVISION)
+    @_reported
+    async def restore_plan_revision(conversation_id: str, number: int) -> dict[str, Any]:
+        return await plan.restore(app.client, conversation_id, number)
+
+    @server.tool()
+    @_reported
+    async def delete_plan(conversation_id: str) -> str:
+        """Delete a conversation's plan; the files its tasks produced stay. Only as the user
+        decided."""
+        await plan.delete(app.client, conversation_id)
+        return "Deleted the plan."
+
     @server.tool()
     @_reported
     async def list_workflows() -> list[dict[str, Any]]:
@@ -344,10 +424,18 @@ def build_server(app: App) -> MCPServer:
     @server.tool()
     @_reported
     async def list_files(conversation_id: str) -> list[dict[str, Any]]:
-        """The files in a conversation, including those Lemma produced."""
+        """The files in a conversation, including those Lemma produced. notebook marks a notebook,
+        which opens in the browser (open_in_browser)."""
+        listed = await remote_files.list_files(app.client, conversation_id)
+        notebooks = await remote_files.notebooks(app.client, conversation_id)
         return [
-            {"id": f.id, "name": f.name, "ready": bool(f.download_url)}
-            for f in await remote_files.list_files(app.client, conversation_id)
+            {
+                "id": f.id,
+                "name": f.name,
+                "ready": bool(f.download_url),
+                "notebook": f.name in notebooks,
+            }
+            for f in listed
         ]
 
     @server.tool(description=DOWNLOAD_FILE)
