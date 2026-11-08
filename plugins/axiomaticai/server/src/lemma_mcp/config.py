@@ -33,6 +33,14 @@ TARGETS = {
         api_url="https://redacted.invalid",
         web_url="https://redacted.invalid",
     ),
+    "dev": Target(
+        name="dev",
+        domain="redacted.invalid",
+        client_id="REDACTED",
+        audience="https://redacted.invalid",
+        api_url="https://redacted.invalid",
+        web_url="https://redacted.invalid",
+    ),
 }
 
 

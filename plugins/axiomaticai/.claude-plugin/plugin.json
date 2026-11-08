@@ -1,7 +1,7 @@
 {
   "name": "axiomaticai",
   "displayName": "Axiomatic AI",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Hand engineering and science work to Lemma: start a conversation, send files, wait for the run, read the answer, download results, and open it in the browser.",
   "author": {
     "name": "Axiomatic AI",
@@ -13,7 +13,7 @@
       "type": "string",
       "title": "Lemma environment",
       "description": "Which Lemma to use. Sign-in and conversations are separate per environment.",
-      "options": ["production", "staging"],
+      "options": ["production", "staging", "dev"],
       "default": "production"
     },
     "open_browser": {
