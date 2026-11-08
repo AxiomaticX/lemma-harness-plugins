@@ -1,6 +1,7 @@
 import json
 
 import httpx
+import pytest
 
 from lemma_mcp.client import LemmaClient, plan
 
@@ -48,6 +49,58 @@ async def test_a_review_is_decided_on_the_current_revision(client: LemmaClient, 
         "reason": "close enough",
         "revision": 7,
     }
+
+
+async def test_an_edit_goes_in_on_the_revision_it_was_made_from(client: LemmaClient, api):
+    route = api.put(PLAN).mock(return_value=_plan(5))
+    tasks = [
+        {"id": "t1", "name": "Sweep", "description": "Finely."},
+        {"name": "Plot", "description": "It."},
+    ]
+
+    await plan.edit(client, "c1", 4, "Find chaos.", tasks)
+
+    assert json.loads(route.calls.last.request.content) == {
+        "revision": 4,
+        "overview": "Find chaos.",
+        "tasks": tasks,
+    }
+
+
+@pytest.mark.parametrize(
+    ("call", "path", "body"),
+    [
+        (
+            lambda c: plan.delete_task(c, "c1", "t1", True),
+            "/tasks/t1/delete",
+            {"keep_dependents": True},
+        ),
+        (lambda c: plan.reopen_task(c, "c1", "t1"), "/tasks/t1/reset", {}),
+        (
+            lambda c: plan.set_task_checks(c, "c1", "t1", False),
+            "/tasks/t1/validation",
+            {"disabled": True},
+        ),
+        (lambda c: plan.restore(c, "c1", 2), "/revisions/2/restore", {}),
+    ],
+)
+async def test_a_task_or_revision_change_goes_in_on_the_current_revision(
+    client: LemmaClient, api, call, path, body
+):
+    api.get(PLAN).mock(return_value=_plan(7))
+    route = api.post(f"{PLAN}{path}").mock(return_value=_plan(8))
+
+    await call(client)
+
+    assert json.loads(route.calls.last.request.content) == {**body, "revision": 7}
+
+
+async def test_the_plan_is_deleted(client: LemmaClient, api):
+    route = api.delete(PLAN).mock(return_value=httpx.Response(204))
+
+    await plan.delete(client, "c1")
+
+    assert route.called
 
 
 async def test_running_the_plan_returns_its_run(client: LemmaClient, api):

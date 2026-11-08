@@ -66,6 +66,17 @@ A run in plan mode ends with a draft plan, not the work. After it:
 3. `run_plan` runs it: `all` runs every task until one needs the user, `next` just the next one.
 4. When a task finishes and waits for review, `review_task` approves, disapproves or waives it.
 
+The user can change the plan at any point, and each change is theirs to decide:
+
+- `edit_plan` replaces the overview and tasks with their edit. Start from `get_plan` and pass its
+  `revision`; send the whole task list, keeping each kept task's `id`. A task without an `id` is
+  added and one left out is removed. The edited plan needs approving again.
+- `delete_task` removes a task, and the tasks that depend on it unless `keep_dependents` is true.
+- `reopen_task` discards a task's result and its dependents', so `run_plan` does them again.
+- `set_task_checks` turns a task's checks off, so its result is reported unverified, or back on.
+- `list_plan_revisions` and `restore_plan_revision` go back to an earlier version of the plan.
+- `delete_plan` removes the plan; the files its tasks produced stay.
+
 ## Wait for the run
 
 Runs take minutes, and long ones take hours. Do not poll in a loop.
@@ -94,7 +105,8 @@ wait for the current run first, or start a new conversation.
 ## Bring results back
 
 - `list_files` shows the conversation's files, including those Lemma produced. `ready` is false
-  while one is still being written.
+  while one is still being written. `notebook` marks a notebook, such as a plan's results:
+  it is best read in the browser, so offer `open_in_browser`.
 - `download_file` saves one by name or id into a local directory and returns the saved path. It
   never overwrites: a name already taken gets a numbered suffix.
 
