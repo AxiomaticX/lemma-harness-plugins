@@ -33,6 +33,14 @@ TARGETS = {
         api_url="https://api.staging.axiomatic-ai.com",
         web_url="https://lemma.staging.axiomatic.ai",
     ),
+    "dev": Target(
+        name="dev",
+        domain="axiomatic-ai-dev.us.auth0.com",
+        client_id="KVxATHrcc0iNPgRwTZP9r3e8E4aGRTel",
+        audience="https://api.dev.axiomatic-ai.com",
+        api_url="https://api.dev.axiomatic-ai.com",
+        web_url="https://platform.dev.axiomatic-ai.com",
+    ),
 }
 
 
