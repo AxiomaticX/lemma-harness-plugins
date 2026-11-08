@@ -250,6 +250,30 @@ async def test_a_plan_answer_that_fails_says_which_were_saved(app: App, api):
         )
 
 
+async def test_the_files_list_marks_the_notebooks(app: App, api):
+    api.get("https://api.test/conversations/c1").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "files": [
+                    {"id": "f1", "name": "plan_results.py", "download_url": "https://s/1"},
+                    {"id": "f2", "name": "gen.py", "download_url": "https://s/2"},
+                ]
+            },
+        )
+    )
+    api.get("https://api.test/conversations/c1/notebooks").mock(
+        return_value=httpx.Response(200, json={"files": ["plan_results.py"], "warm": False})
+    )
+
+    result = _structured(await build_server(app).call_tool("list_files", {"conversation_id": "c1"}))
+
+    assert [(f["name"], f["notebook"]) for f in result["result"]] == [
+        ("plan_results.py", True),
+        ("gen.py", False),
+    ]
+
+
 async def test_a_lemma_failure_reaches_the_agent_as_its_own_message(app: App, api):
     api.post("https://api.test/conversations/c1/messages").mock(return_value=httpx.Response(409))
 
