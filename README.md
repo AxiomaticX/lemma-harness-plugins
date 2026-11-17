@@ -5,7 +5,7 @@ Plugins that let agent harnesses use Axiomatic products. This repository is also
 
 | Plugin | What it does |
 | --- | --- |
-| `axiomaticai` | Hand a task to Lemma from Claude Code: start a conversation, send local files, wait for the run, read the answer, download results, and open the conversation in the browser. |
+| `axiomaticai` | Hand a task to Lemma from Claude Code: start a conversation, send local files, wait for the run, read the answer, download results, open the conversation in the browser, and search and read earlier conversations. |
 
 ## Install
 
