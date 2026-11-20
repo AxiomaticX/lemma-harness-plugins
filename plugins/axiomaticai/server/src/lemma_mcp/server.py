@@ -14,7 +14,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from .auth import Session
-from .client import LemmaClient, options, plan, runs
+from .client import LemmaClient, conversations, options, plan, runs
 from .client import files as remote_files
 from .config import Target, target
 from .errors import LemmaError
@@ -26,7 +26,9 @@ INSTRUCTIONS = (
     "Lemma is Axiomatic's research and engineering agent. Start a conversation with "
     "create_conversation, and continue it with send_message. Runs take minutes to hours; you "
     "are woken when a run ends, so carry on meanwhile with other work. Do not answer a question "
-    "you handed to Lemma yourself; report Lemma's answer when the run ends."
+    "you handed to Lemma yourself; report Lemma's answer when the run ends. Find an earlier "
+    "conversation with find_conversations, and read it with read_conversation before you "
+    "continue it."
 )
 WAKE = (
     "You are woken when the run ends, or after wake_after_minutes (default 60) with word that it "
@@ -131,6 +133,17 @@ Machine = Literal["standard", "enhanced", "high_performance", "max", "gpu"]
 DOWNLOAD_FILE = (
     "Save one of the conversation's files, by name or id, into a local directory. An existing "
     "file is never overwritten; the saved path is returned."
+)
+FIND_CONVERSATIONS = (
+    "Search the user's Lemma conversations by the words in their titles, file names and "
+    "messages, best match first. Search with the distinctive words the user used to describe the "
+    "conversation. Each hit has the snippet that matched, when a message did; busy means a run is "
+    "going in it now. An empty list means nothing matched."
+)
+READ_CONVERSATION = (
+    "Read what the user wrote and Lemma replied in a conversation, oldest first: the latest "
+    "limit messages, or those before before. before comes back null once there is nothing "
+    "earlier."
 )
 
 
@@ -446,6 +459,21 @@ def build_server(app: App) -> MCPServer:
             app.client, conversation_id, name, app.local_path(dest_dir)
         )
         return {"path": str(saved)}
+
+    @server.tool(description=FIND_CONVERSATIONS)
+    @_reported
+    async def find_conversations(query: str) -> list[dict[str, Any]]:
+        return [
+            {**hit, "url": app.target.conversation_url(hit["conversation_id"])}
+            for hit in await conversations.search(app.client, query)
+        ]
+
+    @server.tool(description=READ_CONVERSATION)
+    @_reported
+    async def read_conversation(
+        conversation_id: str, limit: int = 20, before: int | None = None
+    ) -> dict[str, Any]:
+        return await conversations.transcript(app.client, conversation_id, limit, before)
 
     @server.tool()
     async def open_in_browser(conversation_id: str) -> dict[str, Any]:
