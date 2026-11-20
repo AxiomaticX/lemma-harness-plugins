@@ -10,7 +10,7 @@ MATCH_MARKERS = str.maketrans("", "", "\x02\x03")
 async def search(client: LemmaClient, query: str) -> list[dict[str, Any]]:
     """The user's conversations whose title, file names or messages match, best first."""
     response = await client.request("GET", "/users/me/conversations/search", params={"q": query})
-    return [_hit(hit) for hit in response.json().get("hits") or []]
+    return [_hit(hit) for hit in response.json()["hits"]]
 
 
 async def transcript(
@@ -27,17 +27,17 @@ async def transcript(
         "messages": [
             {"source": message["source"], "text": message["text"]} for message in body["messages"]
         ],
-        "before": body.get("before"),
+        "before": body["before"],
     }
 
 
 def _hit(hit: dict[str, Any]) -> dict[str, Any]:
-    snippet = hit.get("snippet")
+    snippet = hit["snippet"]
     return {
         "conversation_id": hit["id"],
-        "title": hit.get("title"),
+        "title": hit["title"],
         "snippet": snippet.translate(MATCH_MARKERS) if snippet is not None else None,
-        "last_message_at": hit.get("last_message_at"),
-        "files": [f["name"] for f in hit.get("files") or [] if isinstance(f, dict) and "name" in f],
-        "busy": bool(hit.get("run_active")),
+        "last_message_at": hit["last_message_at"],
+        "files": [f["name"] for f in hit["files"]],
+        "busy": hit["run_active"],
     }

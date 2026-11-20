@@ -138,13 +138,15 @@ FIND_CONVERSATIONS = (
     "Search the user's Lemma conversations by the words in their titles, file names and "
     "messages, best match first. Search with the distinctive words the user used to describe the "
     "conversation. Each hit has the snippet that matched, when a message did; busy means a run is "
-    "going in it now. An empty list means nothing matched."
+    "going in it now. An empty list means the search found nothing: the query needs at least two "
+    "characters, and some accounts are searched only across their most recent conversations."
 )
 READ_CONVERSATION = (
     "Read what the user wrote and Lemma replied in a conversation, oldest first: the latest "
-    "limit messages, or those before before. before comes back null once there is nothing "
-    "earlier."
+    "limit messages (1 to 100), or those before before. before comes back null once there is "
+    "nothing earlier."
 )
+MAX_READ_MESSAGES = 100
 
 
 PROVIDER_TIERS: dict[str, tuple[str, ...]] = {
@@ -473,6 +475,7 @@ def build_server(app: App) -> MCPServer:
     async def read_conversation(
         conversation_id: str, limit: int = 20, before: int | None = None
     ) -> dict[str, Any]:
+        limit = max(1, min(limit, MAX_READ_MESSAGES))
         return await conversations.transcript(app.client, conversation_id, limit, before)
 
     @server.tool()
