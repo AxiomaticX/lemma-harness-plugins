@@ -1,8 +1,8 @@
 {
   "name": "axiomaticai",
   "displayName": "Axiomatic AI",
-  "version": "0.6.1",
-  "description": "Hand engineering and science work to Lemma: start a conversation, send files, wait for the run, read the answer, download results, and open it in the browser.",
+  "version": "0.7.0",
+  "description": "Hand engineering and science work to Lemma: start a conversation or find and read an earlier one, send files, wait for the run, read the answer, download results, and open it in the browser.",
   "author": {
     "name": "Axiomatic AI",
     "email": "developers@axiomatic-ai.com"
