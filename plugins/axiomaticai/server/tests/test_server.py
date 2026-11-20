@@ -397,22 +397,40 @@ async def test_an_output_past_the_cap_is_saved_whole_to_the_file_asked_for(
     assert str(saved) in result.content[0].text
 
 
-async def test_an_output_within_the_cap_comes_back_whole_even_with_a_file_named(
-    app: App, api, tmp_path: Path
-):
+async def test_a_file_named_is_written_even_when_the_output_fits(app: App, api, tmp_path: Path):
     _long_transcript(api, 50)
 
-    result = _structured(
-        await build_server(app).call_tool(
-            "read_conversation", {"conversation_id": "c1", "output_file": "page.json"}
-        )
+    await build_server(app).call_tool(
+        "read_conversation", {"conversation_id": "c1", "output_file": "page.json"}
     )
 
-    assert result["messages"][0]["text"] == "x" * 50
-    assert not (tmp_path / "page.json").exists()
+    assert json.loads((tmp_path / "page.json").read_text())["messages"][0]["text"] == "x" * 50
 
 
-@pytest.mark.parametrize(("setting", "cap"), [(None, 40_000), ("", 40_000), ("5000", 5000)])
+async def test_a_cut_change_points_at_the_tool_that_reads_it_rather_than_a_second_call(
+    app: App, api
+):
+    api.get("https://api.test/conversations/c1/plan").mock(
+        return_value=httpx.Response(200, json={"revision": 3})
+    )
+    api.post("https://api.test/conversations/c1/plan/revisions/2/restore").mock(
+        return_value=httpx.Response(200, json={"overview": "µm " * 100, "tasks": []})
+    )
+
+    result = await build_server(replace(app, max_output_chars=100)).call_tool(
+        "restore_plan_revision", {"conversation_id": "c1", "number": 2}
+    )
+
+    text = result.content[0].text
+    assert "do not call this tool again" in text
+    assert "call get_plan with output_file" in text
+    assert "µm" in text
+
+
+@pytest.mark.parametrize(
+    ("setting", "cap"),
+    [(None, 40_000), ("", 40_000), ("5000", 5000), ("5000.0", 5000), ("0", 40_000)],
+)
 def test_the_output_cap_comes_from_the_setting(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, setting: str | None, cap: int
 ):
