@@ -426,7 +426,50 @@ async def test_a_tool_that_changes_something_returns_its_result_whole(app: App, 
         t.name
         for t in await server.list_tools()
         if "output_file" in t.input_schema.get("properties", {})
-    } == {"read_conversation", "find_conversations", "get_plan", "get_result", "wait_for_result"}
+    } == {
+        "read_conversation",
+        "find_conversations",
+        "list_conversations",
+        "get_plan",
+        "get_result",
+        "wait_for_result",
+    }
+
+
+@pytest.mark.parametrize("query", ["a", " a ", "x" * 201])
+async def test_a_query_outside_the_length_lemma_takes_is_refused_before_asking(
+    app: App, api, query: str
+):
+    route = api.get("https://api.test/users/me/conversations/search")
+
+    with pytest.raises(ToolError, match="query must be 2 to 200 characters"):
+        await build_server(app).call_tool("find_conversations", {"query": query})
+
+    assert not route.called
+
+
+async def test_listed_conversations_carry_their_links_within_the_limit(app: App, api):
+    item = {
+        "title": "Ring sweep",
+        "last_message_at": None,
+        "created_at": "2026-11-01T10:00:00Z",
+        "files": [],
+        "run_active": False,
+        "owner": None,
+    }
+    api.get("https://api.test/users/me/conversations").mock(
+        return_value=httpx.Response(
+            200,
+            json={"conversations": [{**item, "id": f"c{i}"} for i in range(3)], "total": 3},
+        )
+    )
+
+    result = _structured(await build_server(app).call_tool("list_conversations", {"limit": 2}))
+
+    assert [c["url"] for c in result] == [
+        "https://lemma.test/en/lemma/c0",
+        "https://lemma.test/en/lemma/c1",
+    ]
 
 
 async def test_a_blank_output_file_is_refused_before_lemma_is_asked(app: App, api):

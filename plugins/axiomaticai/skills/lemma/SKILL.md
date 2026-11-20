@@ -43,7 +43,10 @@ Both return `conversation_id`, `run_id` and `url`. Keep all three.
 ## Pick up an earlier conversation
 
 When the user refers to a Lemma conversation without its URL, such as "the Monte Carlo session",
-find it with `find_conversations`, searching with the distinctive words they used.
+find it with `find_conversations`, searching with the distinctive words they used. When they mean
+a recent one but give nothing to search for, such as "what I was doing in Lemma yesterday", use
+`list_conversations`, which lists them by when they were last active. `shared_by` marks one a
+colleague shared.
 
 - One clear match: tell the user which conversation it is, by its title and when it was last
   active. Several plausible matches: ask the user which one they mean. No match: say the search
@@ -128,10 +131,10 @@ wait for the current run first, or start a new conversation.
 
 ## Long results
 
-`read_conversation`, `find_conversations`, `get_plan`, `get_result` and `wait_for_result` hold
-their output to a cap the user sets. A longer result comes back cut, with a note at the end. To get
-the rest, call the same tool again with the same arguments and `output_file` set to a local path,
-then read that file.
+`read_conversation`, `find_conversations`, `list_conversations`, `get_plan`, `get_result` and
+`wait_for_result` hold their output to a cap the user sets. A longer result comes back cut, with a
+note at the end. To get the rest, call the same tool again with the same arguments and
+`output_file` set to a local path, then read that file.
 
 ## Bring results back
 
