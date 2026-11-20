@@ -2,7 +2,7 @@
   "name": "axiomaticai",
   "displayName": "Axiomatic AI",
   "version": "0.6.0",
-  "description": "Hand engineering and science work to Lemma: start a conversation, send files, wait for the run, read the answer, download results, and open it in the browser.",
+  "description": "Hand research, engineering, and scientific computing tasks to Lemma—run workflows or multi-step plans in the background, search past conversations, and bring answers and result files back into your workspace.",
   "author": {
     "name": "Axiomatic AI",
     "email": "developers@axiomatic-ai.com"

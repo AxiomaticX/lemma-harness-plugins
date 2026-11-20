@@ -2,8 +2,8 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "axiomaticai",
   "displayName": "Axiomatic AI",
-  "version": "0.1.0",
-  "description": "Hand engineering and science work to Lemma: start a conversation, send files, wait for the run, read the answer, download results, and open it in the browser.",
+  "version": "0.6.0",
+  "description": "Hand research, engineering, and scientific computing tasks to Lemma—run workflows or multi-step plans in the background, search past conversations, and bring answers and result files back into your workspace.",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [
     "Ask Lemma to survey recent papers on a research topic and summarize the key findings",
