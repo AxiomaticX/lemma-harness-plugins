@@ -14,6 +14,15 @@ async def test_calls_carry_the_bearer_token(client: LemmaClient, api):
     assert route.calls.last.request.headers["Authorization"] == "Bearer at-1"
 
 
+async def test_calls_name_the_plugin_version_and_harness(signed_in, api, monkeypatch):
+    monkeypatch.setenv("LEMMA_HARNESS", "codex")
+    route = api.get("https://api.test/ping").mock(return_value=httpx.Response(200))
+
+    await LemmaClient(signed_in).request("GET", "/ping")
+
+    assert route.calls.last.request.headers["User-Agent"] == "lemma-mcp/0.6.0 (codex)"
+
+
 async def test_a_rejected_token_is_refreshed_once_and_the_call_retried(client: LemmaClient, api):
     api.post(TOKEN_URL).mock(
         side_effect=[token_response("at-1", "rt-2"), token_response("at-2", "rt-3")]

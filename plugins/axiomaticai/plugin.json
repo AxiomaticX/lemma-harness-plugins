@@ -9,7 +9,7 @@
     "url": "https://axiomatic-ai.com"
   },
   "homepage": "https://lemma.axiomatic.ai",
-  "repository": "https://github.com/AxiomaticX/axiomatic-harness-plugins",
+  "repository": "https://github.com/AxiomaticX/lemma-harness-plugins",
   "keywords": ["axiomatic", "lemma"],
   "extensions": {
     "com.openai": {

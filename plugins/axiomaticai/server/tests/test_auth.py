@@ -63,6 +63,22 @@ async def test_a_denied_sign_in_is_reported():
     await listener.close()
 
 
+async def test_the_callback_page_escapes_what_the_redirect_carries():
+    listener = CallbackListener("s", ports=_free_ports(1))
+    await listener.start()
+    async with httpx.AsyncClient() as browser:
+        page = await browser.get(
+            listener.redirect_uri,
+            params={"state": "s", "error": "x", "error_description": "<script>x()</script>"},
+        )
+
+    assert "<script>" not in page.text
+    assert "&lt;script&gt;x()&lt;/script&gt;" in page.text
+    with pytest.raises(NotLoggedInError):
+        await listener.code(timeout=1)
+    await listener.close()
+
+
 async def test_the_listener_takes_the_next_port_when_one_is_busy():
     taken, free = _free_ports(2)
     blocker = socket.socket()

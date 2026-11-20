@@ -16,7 +16,7 @@ Requires [`uv`](https://docs.astral.sh/uv/) on `PATH`.
 Requires Claude Code. Paste this into Claude Code:
 
 ```
-Install the Lemma plugin from the AxiomaticX/axiomatic-harness-plugins marketplace.
+Install the Lemma plugin from the AxiomaticX/lemma-harness-plugins marketplace.
 
 First ask me two questions, and wait for both answers:
 1. Install it for my user (every project) or for this project only?
@@ -24,7 +24,7 @@ First ask me two questions, and wait for both answers:
 
 Then, with SCOPE as user or project from my first answer and OPEN as true or false from my second, run:
 
-claude plugin marketplace add AxiomaticX/axiomatic-harness-plugins --scope SCOPE
+claude plugin marketplace add AxiomaticX/lemma-harness-plugins --scope SCOPE
 claude plugin install axiomaticai@axiomatic-ai --scope SCOPE --config open_browser=OPEN
 
 Report each command's output, then tell me to run /reload-plugins to load it.
@@ -33,7 +33,7 @@ Report each command's output, then tell me to run /reload-plugins to load it.
 Or by hand, in Claude Code:
 
 ```
-/plugin marketplace add AxiomaticX/axiomatic-harness-plugins
+/plugin marketplace add AxiomaticX/lemma-harness-plugins
 /plugin install axiomaticai@axiomatic-ai
 ```
 
@@ -49,13 +49,13 @@ The plugin talks to production Lemma. To use staging or dev, set its `environmen
 Requires Google Antigravity (`agy` CLI or Antigravity App). Install from GitHub:
 
 ```
-agy plugin install https://github.com/AxiomaticX/axiomatic-harness-plugins/tree/main/plugins/axiomaticai
+agy plugin install https://github.com/AxiomaticX/lemma-harness-plugins/tree/main/plugins/axiomaticai
 ```
 
 Or install from a local checkout:
 
 ```
-agy plugin install /path/to/axiomatic-harness-plugins/plugins/axiomaticai
+agy plugin install /path/to/lemma-harness-plugins/plugins/axiomaticai
 ```
 
 Antigravity stages the plugin into `~/.gemini/config/plugins/axiomaticai/` (or place it in
@@ -84,7 +84,7 @@ Requires OpenAI Codex (CLI or ChatGPT desktop app). Add this repository as a mar
 install `axiomaticai`:
 
 ```
-codex plugin marketplace add AxiomaticX/axiomatic-harness-plugins
+codex plugin marketplace add AxiomaticX/lemma-harness-plugins
 codex plugin add axiomaticai@axiomatic-ai
 ```
 
@@ -169,7 +169,7 @@ agy plugin validate plugins/axiomaticai
 To try a local checkout in Claude Code, add the repository directory as a marketplace:
 
 ```
-/plugin marketplace add /path/to/axiomatic-harness-plugins
+/plugin marketplace add /path/to/lemma-harness-plugins
 /plugin install axiomaticai@axiomatic-ai
 ```
 
@@ -178,12 +178,12 @@ ran `uv sync` locally, as `agy plugin install` rejects symlinks pointing outside
 directory):
 
 ```
-agy plugin install /path/to/axiomatic-harness-plugins/plugins/axiomaticai
+agy plugin install /path/to/lemma-harness-plugins/plugins/axiomaticai
 ```
 
 To try a local checkout in Codex:
 
 ```
-codex plugin marketplace add /path/to/axiomatic-harness-plugins
+codex plugin marketplace add /path/to/lemma-harness-plugins
 codex plugin add axiomaticai@axiomatic-ai
 ```
