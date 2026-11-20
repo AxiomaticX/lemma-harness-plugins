@@ -41,7 +41,7 @@
     "max_tool_output_chars": {
       "type": "number",
       "title": "Tool output cap",
-      "description": "The most characters a Lemma tool returns to Claude. A longer result is cut, and Claude can save the whole of it to a file instead.",
+      "description": "The most characters the tools that read conversations, plans and results return to Claude. A longer result is cut, and Claude can save the whole of it to a file instead.",
       "default": 40000
     }
   }

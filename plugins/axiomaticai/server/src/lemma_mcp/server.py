@@ -29,11 +29,6 @@ CUT_OUTPUT = (
     "same arguments and output_file set to a local path; the whole output is saved there, never "
     "over an existing file.]"
 )
-CUT_CHANGE = (
-    "[Output cut at {cap} of {total} characters. The change is made: do not call this tool again. "
-    "To get the whole result, call {reread} with output_file set to a local path; it is saved "
-    "there, never over an existing file.]"
-)
 
 INSTRUCTIONS = (
     "Lemma is Axiomatic's research and engineering agent. Start a conversation with "
@@ -190,7 +185,7 @@ def _max_output_chars(raw: str | None) -> int:
     """The output cap setting, or the default when it is unset or not a positive number."""
     try:
         chars = int(float(raw or ""))
-    except ValueError:
+    except (ValueError, OverflowError):
         return DEFAULT_MAX_OUTPUT_CHARS
     return chars if chars > 0 else DEFAULT_MAX_OUTPUT_CHARS
 
@@ -236,51 +231,68 @@ class App:
         path = Path(raw).expanduser()
         return path if path.is_absolute() else self.project_dir / path
 
-    def fit(self, result: Any, output_file: str | None, reread: str | None = None) -> str:
-        """``result`` as text, saved whole to ``output_file`` when one is given; otherwise cut at
-        the output cap, with word of how to get the rest. A tool that changes something names the
-        tool that reads its result again in ``reread``, so the change is never made twice."""
-        text = (
-            result if isinstance(result, str) else json.dumps(result, indent=2, ensure_ascii=False)
-        )
+    def fit(self, result: Any, output_file: str | None) -> str:
+        """``result`` as text: saved whole to ``output_file`` when one is given, otherwise within
+        the output cap, with a note on how to get the rest."""
+        text = as_text(result)
         if output_file is not None:
-            return self._save(text, output_file)
+            try:
+                return self._save(text, output_file)
+            except (OSError, UnicodeError) as e:
+                raise ToolError(f"Could not save the output to {output_file}: {e}") from e
         if len(text) <= self.max_output_chars:
             return text
-        cap, total = self.max_output_chars, len(text)
-        if reread is None:
-            note = CUT_OUTPUT.format(cap=cap, total=total)
-        else:
-            note = CUT_CHANGE.format(cap=cap, total=total, reread=reread)
-        return f"{text[:cap]}\n\n{note}"
+        note = CUT_OUTPUT.format(cap=self.max_output_chars, total=len(text))
+        kept = max(0, self.max_output_chars - len(note) - 2)
+        return f"{text[:kept]}\n\n{note}"
 
     def _save(self, text: str, output_file: str) -> str:
-        path = remote_files.free_path(self.local_path(output_file))
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text)
-        except OSError as e:
-            raise ToolError(f"Could not save the output to {path}: {e}") from e
-        return f"The whole output, {len(text)} characters, is saved to {path}."
+        wanted = self.local_path(output_file)
+        wanted.parent.mkdir(parents=True, exist_ok=True)
+        while True:
+            path = remote_files.free_path(wanted)
+            try:
+                with path.open("x", encoding="utf-8") as out:
+                    out.write(text)
+            except FileExistsError:
+                continue
+            return f"The whole output, {len(text)} characters, is saved to {path}."
+
+
+def as_text(result: Any) -> str:
+    return result if isinstance(result, str) else json.dumps(result, indent=2, ensure_ascii=False)
 
 
 def build_server(app: App) -> MCPServer:
     server = MCPServer("lemma", instructions=INSTRUCTIONS)
 
-    def tool(description: str | None = None, reread: str | None = None):
-        """Register a tool whose output is held to the cap, with output_file for the overflow, and
-        whose Lemma failures come back as their own message rather than a bare tool error."""
+    async def reported(fn: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
+        try:
+            return await fn(*args, **kwargs)
+        except LemmaError as e:
+            raise ToolError(str(e)) from e
+        except httpx.HTTPError as e:
+            raise ToolError(f"Could not reach Lemma: {e}") from e
+
+    def tool(description: str | None = None, capped: bool = False):
+        """Register a tool whose Lemma failures come back as their own message. A capped tool only
+        reads, and its output is held to the cap, with output_file for the rest."""
 
         def register(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[str]]:
+            if not capped:
+
+                @functools.wraps(fn)
+                async def plain(*args: Any, **kwargs: Any) -> str:
+                    return as_text(await reported(fn, *args, **kwargs))
+
+                plain.__signature__ = inspect.signature(fn).replace(return_annotation=str)
+                return server.tool(description=description, structured_output=False)(plain)
+
             @functools.wraps(fn)
             async def call(*args: Any, output_file: str | None = None, **kwargs: Any) -> str:
-                try:
-                    result = await fn(*args, **kwargs)
-                except LemmaError as e:
-                    raise ToolError(str(e)) from e
-                except httpx.HTTPError as e:
-                    raise ToolError(f"Could not reach Lemma: {e}") from e
-                return app.fit(result, output_file, reread)
+                if output_file is not None and not output_file.strip():
+                    raise ToolError("output_file must be a file path.")
+                return app.fit(await reported(fn, *args, **kwargs), output_file)
 
             signature = inspect.signature(fn)
             output_file = inspect.Parameter(
@@ -377,17 +389,17 @@ def build_server(app: App) -> MCPServer:
             "machines": await options.machines(app.client),
         }
 
-    @tool(description=GET_PLAN)
+    @tool(description=GET_PLAN, capped=True)
     async def get_plan(conversation_id: str) -> dict[str, Any]:
         return await plan.get(app.client, conversation_id)
 
-    @tool(description=ANSWER_PLAN, reread="get_plan")
+    @tool(description=ANSWER_PLAN)
     async def answer_plan(
         conversation_id: str, answers: dict[str, str], approve: bool = False
     ) -> dict[str, Any]:
         return await plan.answer(app.client, conversation_id, answers, approve)
 
-    @tool(description=REVIEW_TASK, reread="get_plan")
+    @tool(description=REVIEW_TASK)
     async def review_task(
         conversation_id: str,
         task_id: str,
@@ -396,7 +408,7 @@ def build_server(app: App) -> MCPServer:
     ) -> dict[str, Any]:
         return await plan.review(app.client, conversation_id, task_id, decision, reason)
 
-    @tool(description=EDIT_PLAN, reread="get_plan")
+    @tool(description=EDIT_PLAN)
     async def edit_plan(
         conversation_id: str, revision: int, overview: str, tasks: list[PlanTask]
     ) -> dict[str, Any]:
@@ -404,17 +416,17 @@ def build_server(app: App) -> MCPServer:
             app.client, conversation_id, revision, overview, list(map(dict, tasks))
         )
 
-    @tool(description=DELETE_TASK, reread="get_plan")
+    @tool(description=DELETE_TASK)
     async def delete_task(
         conversation_id: str, task_id: str, keep_dependents: bool = False
     ) -> dict[str, Any]:
         return await plan.delete_task(app.client, conversation_id, task_id, keep_dependents)
 
-    @tool(description=REOPEN_TASK, reread="get_plan")
+    @tool(description=REOPEN_TASK)
     async def reopen_task(conversation_id: str, task_id: str) -> dict[str, Any]:
         return await plan.reopen_task(app.client, conversation_id, task_id)
 
-    @tool(description=SET_TASK_CHECKS, reread="get_plan")
+    @tool(description=SET_TASK_CHECKS)
     async def set_task_checks(conversation_id: str, task_id: str, enabled: bool) -> dict[str, Any]:
         return await plan.set_task_checks(app.client, conversation_id, task_id, enabled)
 
@@ -423,7 +435,7 @@ def build_server(app: App) -> MCPServer:
         """The plan's saved revisions, oldest first: who wrote each, and which were approved."""
         return await plan.revisions(app.client, conversation_id)
 
-    @tool(description=RESTORE_PLAN_REVISION, reread="get_plan")
+    @tool(description=RESTORE_PLAN_REVISION)
     async def restore_plan_revision(conversation_id: str, number: int) -> dict[str, Any]:
         return await plan.restore(app.client, conversation_id, number)
 
@@ -467,7 +479,7 @@ def build_server(app: App) -> MCPServer:
     ) -> dict[str, Any]:
         return started(conversation_id, await plan.run(app.client, conversation_id, scope))
 
-    @tool(description=WAIT_FOR_RESULT)
+    @tool(description=WAIT_FOR_RESULT, capped=True)
     async def wait_for_result(
         conversation_id: str,
         run_id: str,
@@ -479,7 +491,7 @@ def build_server(app: App) -> MCPServer:
             conversation_id, await runs.wait(app.client, conversation_id, run_id, timeout)
         )
 
-    @tool()
+    @tool(capped=True)
     async def get_result(conversation_id: str, run_id: str) -> dict[str, Any]:
         """Report a run's outcome now, without waiting. Outcomes are as for wait_for_result."""
         return outcome(conversation_id, await runs.result(app.client, conversation_id, run_id))
@@ -507,14 +519,14 @@ def build_server(app: App) -> MCPServer:
         )
         return {"path": str(saved)}
 
-    @tool(description=FIND_CONVERSATIONS)
+    @tool(description=FIND_CONVERSATIONS, capped=True)
     async def find_conversations(query: str) -> list[dict[str, Any]]:
         return [
             {**hit, "url": app.target.conversation_url(hit["conversation_id"])}
             for hit in await conversations.search(app.client, query)
         ]
 
-    @tool(description=READ_CONVERSATION)
+    @tool(description=READ_CONVERSATION, capped=True)
     async def read_conversation(
         conversation_id: str,
         limit: int = 10,
