@@ -8,6 +8,7 @@
     "email": "developers@axiomatic-ai.com"
   },
   "keywords": ["axiomatic", "lemma"],
+  "icon": "./.claude-plugin/icon.png",
   "userConfig": {
     "open_browser": {
       "type": "boolean",
