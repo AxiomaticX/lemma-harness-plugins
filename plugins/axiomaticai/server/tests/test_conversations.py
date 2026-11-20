@@ -3,6 +3,7 @@ import httpx
 from lemma_mcp.client import LemmaClient, conversations
 
 SEARCH = "https://api.test/users/me/conversations/search"
+LIST = "https://api.test/users/me/conversations"
 TRANSCRIPT = "https://api.test/conversations/c1/transcript"
 
 
@@ -58,6 +59,31 @@ async def test_no_match_is_an_empty_list(client: LemmaClient, api):
     api.get(SEARCH).mock(return_value=httpx.Response(200, json={"hits": []}))
 
     assert await conversations.search(client, "grating") == []
+
+
+async def test_recent_conversations_come_newest_first_and_name_who_shared_one(
+    client: LemmaClient, api
+):
+    own = _hit(id="c1", last_message_at="2026-11-01T10:00:00Z", owner=None)
+    never_sent = _hit(id="c2", last_message_at=None, created_at="2026-11-03T10:00:00Z", owner=None)
+    shared = _hit(
+        id="c3",
+        last_message_at="2026-11-02T10:00:00Z",
+        owner={"id": "u2", "email": "colleague@lemma.test"},
+    )
+    api.get(LIST).mock(
+        return_value=httpx.Response(
+            200, json={"conversations": [own, never_sent, shared], "total": 3}
+        )
+    )
+
+    found = await conversations.recent(client, limit=2)
+
+    assert [(c["conversation_id"], c["shared_by"]) for c in found] == [
+        ("c2", None),
+        ("c3", "colleague@lemma.test"),
+    ]
+    assert "snippet" not in found[0]
 
 
 async def test_a_transcript_page_asks_for_its_place_and_comes_back_with_the_total(

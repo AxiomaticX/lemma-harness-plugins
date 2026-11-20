@@ -35,8 +35,8 @@ INSTRUCTIONS = (
     "create_conversation, and continue it with send_message. Runs take minutes to hours; you "
     "are woken when a run ends, so carry on meanwhile with other work. Do not answer a question "
     "you handed to Lemma yourself; report Lemma's answer when the run ends. Find an earlier "
-    "conversation with find_conversations, and read it with read_conversation before you "
-    "continue it."
+    "conversation with find_conversations or list_conversations, and read it with "
+    "read_conversation before you continue it."
 )
 WAKE = (
     "You are woken when the run ends, or after wake_after_minutes (default 60) with word that it "
@@ -149,6 +149,14 @@ FIND_CONVERSATIONS = (
     "going in it now. The query is 2 to 200 characters. An empty list means the search found "
     "nothing."
 )
+LIST_CONVERSATIONS = (
+    "The user's most recently active Lemma conversations, newest first, up to limit (1 to 100), "
+    "with those colleagues shared that the user took part in; shared_by names who shared one. "
+    "Use it when the user means a recent conversation but gives no words to search for."
+)
+MIN_QUERY_CHARS = 2
+MAX_QUERY_CHARS = 200
+MAX_LISTED = 100
 READ_CONVERSATION = (
     "Read what the user wrote and Lemma replied in a conversation, a page of limit messages "
     "(1 to 100) at a time. order latest counts index from the newest message and returns the "
@@ -319,6 +327,11 @@ def build_server(app: App) -> MCPServer:
     def started(conversation_id: str, run_id: str) -> dict[str, Any]:
         url = app.target.conversation_url(conversation_id)
         return {"conversation_id": conversation_id, "run_id": run_id, "url": url}
+
+    def linked(found: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            {**item, "url": app.target.conversation_url(item["conversation_id"])} for item in found
+        ]
 
     async def send(
         conversation_id: str,
@@ -521,10 +534,13 @@ def build_server(app: App) -> MCPServer:
 
     @tool(description=FIND_CONVERSATIONS, capped=True)
     async def find_conversations(query: str) -> list[dict[str, Any]]:
-        return [
-            {**hit, "url": app.target.conversation_url(hit["conversation_id"])}
-            for hit in await conversations.search(app.client, query)
-        ]
+        if not MIN_QUERY_CHARS <= len(query.strip()) <= MAX_QUERY_CHARS:
+            raise ToolError(f"query must be {MIN_QUERY_CHARS} to {MAX_QUERY_CHARS} characters.")
+        return linked(await conversations.search(app.client, query))
+
+    @tool(description=LIST_CONVERSATIONS, capped=True)
+    async def list_conversations(limit: int = 20) -> list[dict[str, Any]]:
+        return linked(await conversations.recent(app.client, max(1, min(limit, MAX_LISTED))))
 
     @tool(description=READ_CONVERSATION, capped=True)
     async def read_conversation(
