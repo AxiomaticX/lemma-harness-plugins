@@ -40,6 +40,14 @@ colleague: the goal, what you already know, and what a good result looks like. C
 
 Both return `conversation_id`, `run_id` and `url`. Keep all three.
 
+## Don't answer for Lemma
+
+A question you hand to Lemma is Lemma's to answer. While the run goes, do not answer it yourself
+and do not predict what Lemma will say: the user then gets two answers, yours first, which may
+disagree. Tell them the question is with Lemma, give them `url`, and carry on only with work that
+does not answer it. When the run ends, report Lemma's answer. If you have something to add, put it
+after Lemma's answer and say it is yours.
+
 ## Ready-made workflows
 
 Lemma has ready-made workflows for common jobs, such as surveying the literature, making a paper
@@ -82,12 +90,14 @@ The user can change the plan at any point, and each change is theirs to decide:
 Runs take minutes, and long ones take hours. Do not poll `get_result` in a loop.
 
 - In Claude Code, any call that starts a run arms a background wake-up automatically, so carry on
-  with other work. If the run is still going after `wake_after_minutes` (60 by default), you are
-  woken with word of that instead; call `wait_for_result` then to keep waiting, which arms the
-  next wake-up. To block until the run ends, call `wait_for_result` (up to `timeout_s`, 600s max).
+  with other work, but not with an answer to what you handed over. If the run is still going
+  after `wake_after_minutes` (60 by default), you are woken with word of that instead; call
+  `wait_for_result` then to keep waiting, which arms the next wake-up. To block until the run
+  ends, call `wait_for_result` (up to `timeout_s`, 600s max).
 - In Antigravity, call `wait_for_result` right after starting a run: it runs in the background
   and wakes you with the outcome when the run ends, or after `wake_after_minutes` (60 by default)
-  with outcome `running` (call `wait_for_result` again to keep waiting).
+  with outcome `running` (call `wait_for_result` again to keep waiting). Meanwhile, carry on only
+  with work that does not answer what you handed over.
 - Set `wake_after_minutes` higher only when you know the run will take hours, such as a long
   simulation or a whole plan.
 - `get_result` reports the outcome at once without waiting.
@@ -97,7 +107,7 @@ Runs take minutes, and long ones take hours. Do not poll `get_result` in a loop.
 | outcome | meaning | what to do |
 | --- | --- | --- |
 | `answered` | The run ended with a reply. | Use `answer`. |
-| `running` | Still working. | Wait for the wake-up (or call `wait_for_result` again if the wake window elapsed). |
+| `running` | Still working. | Carry on with other work, not with your own answer; wait for the wake-up (or call `wait_for_result` again if the wake window elapsed). |
 | `waiting_for_input` | Lemma needs a decision only the user can make; `questions` holds it. | Ask the user, then `answer_questions` with their decision. In plan mode, check `get_plan` for reviews too. |
 | `no_answer` | The run ended without a reply. | Give the user `url` to see what happened. |
 

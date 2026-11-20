@@ -26,13 +26,15 @@ MAX_WAKE_MINUTES = 23 * 60
 INSTRUCTIONS = (
     "Lemma is Axiomatic's research and engineering agent. Start a conversation with "
     "create_conversation, and continue it with send_message. Runs take minutes to hours; you "
-    "are woken when a run ends, so carry on meanwhile."
+    "are woken when a run ends, so carry on meanwhile with other work. Do not answer a question "
+    "you handed to Lemma yourself; report Lemma's answer when the run ends."
 )
 BACKGROUND_INSTRUCTIONS = (
     "Lemma is Axiomatic's research and engineering agent. Start a conversation with "
     "create_conversation, and continue it with send_message. Runs take minutes to hours; after "
     "starting a run, call wait_for_result so it waits in the background and wakes you when the "
-    "run ends."
+    "run ends. Do not answer a question you handed to Lemma yourself; report Lemma's answer "
+    "when the run ends."
 )
 WAKE = (
     "You are woken when the run ends, or after wake_after_minutes (default 60) with word that it "
