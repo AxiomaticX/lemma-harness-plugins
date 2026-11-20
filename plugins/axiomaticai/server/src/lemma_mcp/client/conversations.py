@@ -14,21 +14,14 @@ async def search(client: LemmaClient, query: str) -> list[dict[str, Any]]:
 
 
 async def transcript(
-    client: LemmaClient, conversation_id: str, limit: int, before: int | None
+    client: LemmaClient, conversation_id: str, limit: int, index: int, order: str
 ) -> dict[str, Any]:
-    """What the user typed and Lemma wrote, oldest first, and the cursor for earlier messages."""
-    params: dict[str, Any] = {"limit": limit}
-    if before is not None:
-        params["before"] = before
-    body = (
-        await client.request("GET", f"/conversations/{conversation_id}/transcript", params=params)
-    ).json()
-    return {
-        "messages": [
-            {"source": message["source"], "text": message["text"]} for message in body["messages"]
-        ],
-        "before": body["before"],
-    }
+    """A page of what the user typed and Lemma wrote, and how many messages there are in all."""
+    params = {"limit": limit, "index": index, "order": order}
+    response = await client.request(
+        "GET", f"/conversations/{conversation_id}/transcript", params=params
+    )
+    return response.json()
 
 
 def _hit(hit: dict[str, Any]) -> dict[str, Any]:

@@ -268,7 +268,7 @@ async def test_the_files_list_marks_the_notebooks(app: App, api):
 
     result = _structured(await build_server(app).call_tool("list_files", {"conversation_id": "c1"}))
 
-    assert [(f["name"], f["notebook"]) for f in result["result"]] == [
+    assert [(f["name"], f["notebook"]) for f in result] == [
         ("plan_results.py", True),
         ("gen.py", False),
     ]
@@ -330,19 +330,96 @@ async def test_a_found_conversation_carries_its_link(app: App, api):
         await build_server(app).call_tool("find_conversations", {"query": "ring sweep"})
     )
 
-    assert [hit["url"] for hit in result["result"]] == ["https://lemma.test/en/lemma/c1"]
+    assert [hit["url"] for hit in result] == ["https://lemma.test/en/lemma/c1"]
 
 
 @pytest.mark.parametrize(
-    ("asked", "sent"), [({}, "20"), ({"limit": 500}, "100"), ({"limit": 0}, "1")]
+    ("asked", "sent"),
+    [
+        ({}, {"limit": "10", "index": "0", "order": "latest"}),
+        (
+            {"limit": 500, "index": 7, "order": "oldest"},
+            {"limit": "100", "index": "7", "order": "oldest"},
+        ),
+        ({"limit": 0, "index": -3}, {"limit": "1", "index": "0", "order": "latest"}),
+    ],
 )
-async def test_reading_a_conversation_asks_for_the_latest_messages_within_the_range(
-    app: App, api, asked: dict, sent: str
+async def test_reading_a_conversation_asks_for_a_page_within_the_range(
+    app: App, api, asked: dict, sent: dict
 ):
     route = api.get("https://api.test/conversations/c1/transcript").mock(
-        return_value=httpx.Response(200, json={"messages": [], "before": None})
+        return_value=httpx.Response(200, json={"messages": [], "total": 0})
     )
 
     await build_server(app).call_tool("read_conversation", {"conversation_id": "c1", **asked})
 
-    assert dict(route.calls.last.request.url.params) == {"limit": sent}
+    assert dict(route.calls.last.request.url.params) == sent
+
+
+def _long_transcript(api, chars: int) -> None:
+    api.get("https://api.test/conversations/c1/transcript").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "messages": [{"index": 0, "source": "assistant", "text": "x" * chars}],
+                "total": 1,
+            },
+        )
+    )
+
+
+async def test_an_output_past_the_cap_is_cut_with_word_of_how_to_get_the_rest(app: App, api):
+    _long_transcript(api, 500)
+
+    result = await build_server(replace(app, max_output_chars=100)).call_tool(
+        "read_conversation", {"conversation_id": "c1"}
+    )
+
+    text = result.content[0].text
+    assert text.startswith('{\n  "messages"')
+    assert "[Output cut at 100 of " in text
+    assert "output_file" in text
+
+
+async def test_an_output_past_the_cap_is_saved_whole_to_the_file_asked_for(
+    app: App, api, tmp_path: Path
+):
+    _long_transcript(api, 500)
+    (tmp_path / "page.json").write_text("keep me")
+
+    result = await build_server(replace(app, max_output_chars=100)).call_tool(
+        "read_conversation", {"conversation_id": "c1", "output_file": "page.json"}
+    )
+
+    saved = tmp_path / "page (1).json"
+    assert json.loads(saved.read_text())["messages"][0]["text"] == "x" * 500
+    assert (tmp_path / "page.json").read_text() == "keep me"
+    assert str(saved) in result.content[0].text
+
+
+async def test_an_output_within_the_cap_comes_back_whole_even_with_a_file_named(
+    app: App, api, tmp_path: Path
+):
+    _long_transcript(api, 50)
+
+    result = _structured(
+        await build_server(app).call_tool(
+            "read_conversation", {"conversation_id": "c1", "output_file": "page.json"}
+        )
+    )
+
+    assert result["messages"][0]["text"] == "x" * 50
+    assert not (tmp_path / "page.json").exists()
+
+
+@pytest.mark.parametrize(("setting", "cap"), [(None, 40_000), ("", 40_000), ("5000", 5000)])
+def test_the_output_cap_comes_from_the_setting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, setting: str | None, cap: int
+):
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    if setting is None:
+        monkeypatch.delenv("LEMMA_MAX_TOOL_OUTPUT_CHARS", raising=False)
+    else:
+        monkeypatch.setenv("LEMMA_MAX_TOOL_OUTPUT_CHARS", setting)
+
+    assert App.from_env().max_output_chars == cap
