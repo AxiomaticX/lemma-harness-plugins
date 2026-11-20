@@ -11,7 +11,7 @@ from typing import Any
 from .auth import Session
 from .client import LemmaClient
 from .client.runs import CHUNK_SECONDS, RETRY_SECONDS, RUNNING, wait, wait_window
-from .config import target
+from .config import load_settings, target
 from .errors import NotFoundError, NotLoggedInError
 
 DEFAULT_MINUTES = 60
@@ -96,7 +96,8 @@ def main() -> None:
     found = hook_run(json.load(sys.stdin))
     if found is None:
         return
-    lemma = target(os.environ.get("CLAUDE_PLUGIN_OPTION_ENVIRONMENT"))
+    saved = load_settings(args.data_dir)
+    lemma = target(os.environ.get("CLAUDE_PLUGIN_OPTION_ENVIRONMENT") or saved.get("environment"))
     client = LemmaClient(Session(lemma, args.data_dir, interactive=False))
     print(asyncio.run(follow(client, *found)), flush=True)
     sys.exit(WAKE_CLAUDE)

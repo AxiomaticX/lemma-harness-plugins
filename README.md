@@ -61,13 +61,22 @@ agy plugin install /path/to/axiomatic-harness-plugins/plugins/axiomaticai
 Antigravity stages the plugin into `~/.gemini/config/plugins/axiomaticai/` (or place it in
 `.agents/plugins/axiomaticai/` for a single workspace). By default it talks to production Lemma,
 opens each new conversation in the browser, and uses Lemma's default model and `Standard`
-machine. To override any of these, set environment variables under `mcpServers.lemma.env` in the
-installed `mcp_config.json`:
+machine.
 
-- `LEMMA_ENVIRONMENT`: `production` (default), `staging`, or `dev`
-- `LEMMA_OPEN_BROWSER`: `true` (default) or `false`
-- `LEMMA_DEFAULT_MODEL`: e.g. `Anthropic · Pro Fast`, `Anthropic · Pro`, `Google · Pro`
-- `LEMMA_DEFAULT_MACHINE`: `Standard`, `Enhanced`, `High performance`, `Max`, or `GPU`
+To change settings in Antigravity, ask the agent to configure Lemma (for example, *"configure
+Lemma to use staging and don't open the browser"*). That calls the `configure` tool, applies
+immediately without restarting, and saves to `${PLUGIN_DATA}/config.json` so settings survive
+plugin updates:
+
+- `environment`: `production` (default), `staging`, or `dev`
+- `open_browser`: `true` (default) or `false`
+- `default_model`: `Lemma's default`, `Anthropic · Pro Fast`, `Anthropic · Pro`,
+  `Anthropic · Normal`, `Google · Pro`, `Google · Normal`, `Open-weight · Pro`, or
+  `Open-weight · Normal`
+- `default_machine`: `Standard`, `Enhanced`, `High performance`, `Max`, or `GPU`
+
+You can also edit `config.json` directly, or override any setting via `LEMMA_ENVIRONMENT`,
+`LEMMA_OPEN_BROWSER`, `LEMMA_DEFAULT_MODEL`, or `LEMMA_DEFAULT_MACHINE` in `mcp_config.json`.
 
 ## Sign in
 
@@ -123,7 +132,9 @@ To try a local checkout in Claude Code, add the repository directory as a market
 /plugin install axiomaticai@axiomatic-ai
 ```
 
-To try a local checkout in Antigravity:
+To try a local checkout in Antigravity (remove `plugins/axiomaticai/server/.venv` first if you
+ran `uv sync` locally, as `agy plugin install` rejects symlinks pointing outside the plugin
+directory):
 
 ```
 agy plugin install /path/to/axiomatic-harness-plugins/plugins/axiomaticai

@@ -120,6 +120,12 @@ and continue it themselves. Offer it whenever the user should see or steer the w
 When the user asks to see a conversation, call `open_in_browser` with its id. If it returns
 `opened` false, no browser could be opened: give them `url` instead.
 
+## Settings
+
+`configure` reads or updates the plugin's persistent settings (`environment`, `open_browser`,
+`default_model`, and `default_machine`), taking effect immediately and surviving plugin updates.
+Only change settings when the user asks.
+
 ## Sign-in
 
 The first call that needs Lemma opens the browser to sign in, and the sign-in is remembered

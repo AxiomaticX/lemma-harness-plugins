@@ -171,10 +171,15 @@ class Session:
         self.store = TokenStore(target, data_dir)
         self._interactive = interactive
         self._open_browser = open_browser
+        self._owns_http = http is None
         self._http = http or httpx.AsyncClient(timeout=30)
         self._token: _AccessToken | None = None
         self._mutex = asyncio.Lock()
         self._pending_login: asyncio.Task[None] | None = None
+
+    async def aclose(self) -> None:
+        if self._owns_http:
+            await self._http.aclose()
 
     async def access_token(self) -> str:
         if self._token is not None and self._token.fresh():

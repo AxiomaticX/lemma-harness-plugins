@@ -17,7 +17,13 @@ class LemmaClient:
     def __init__(self, session: Session, http: httpx.AsyncClient | None = None) -> None:
         self.session = session
         self.target = session.target
+        self._owns_http = http is None
         self._http = http or httpx.AsyncClient(base_url=self.target.api_url, timeout=TIMEOUT)
+
+    async def aclose(self) -> None:
+        if self._owns_http:
+            await self._http.aclose()
+        await self.session.aclose()
 
     async def request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         response = await self._send(method, path, await self.session.access_token(), **kwargs)
