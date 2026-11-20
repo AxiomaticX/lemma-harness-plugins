@@ -410,6 +410,7 @@ dependencies = [
     { name = "httpx" },
     { name = "keyring" },
     { name = "mcp" },
+    { name = "mcp-types" },
     { name = "pydantic" },
 ]
 
@@ -426,7 +427,8 @@ requires-dist = [
     { name = "filelock", specifier = ">=4.2" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "keyring", specifier = ">=25" },
-    { name = "mcp", specifier = ">=1.20" },
+    { name = "mcp", specifier = ">=2.3" },
+    { name = "mcp-types", specifier = ">=2.3" },
     { name = "pydantic", specifier = ">=2.11" },
 ]
 

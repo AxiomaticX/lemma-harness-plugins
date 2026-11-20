@@ -42,10 +42,11 @@ The plugin talks to production Lemma. To use staging or dev, set its `environmen
 
 ## Which local files Lemma can reach
 
-Files are sent from, and saved to, only the project (`CLAUDE_PROJECT_DIR`) and any folders listed
-in `LEMMA_ALLOWED_DIRS` (separated by `:`). Hidden files and folders, such as `.env`, `.ssh` or
-`.aws`, are always refused. Claude cannot change this list; set it in the environment that starts
-Claude Code.
+Files are sent from, and saved to, the open workspace (the folders Claude Code reports over MCP),
+the project (`CLAUDE_PROJECT_DIR`), and any folders listed in `LEMMA_ALLOWED_DIRS` (separated by
+`:`). For any other path, Claude Code asks you to allow it first; Claude cannot answer for you.
+Hidden files and folders, such as `.env`, `.ssh` or `.aws`, are always refused. Claude cannot
+change `LEMMA_ALLOWED_DIRS`; set it in the environment that starts Claude Code.
 
 ## Sign in
 
