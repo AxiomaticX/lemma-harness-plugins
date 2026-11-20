@@ -129,8 +129,9 @@ wait for the current run first, or start a new conversation.
 ## Long results
 
 Every tool's output is held to a cap the user sets. A longer result comes back cut, with a note
-at the end. To get the rest, call the same tool again with the same arguments and `output_file`
-set to a local path, then read that file.
+at the end saying how to get the rest: call the same tool again with `output_file` set to a local
+path, or, after a tool that changed something, call the tool the note names instead, so the
+change is not made twice. Then read that file.
 
 ## Bring results back
 

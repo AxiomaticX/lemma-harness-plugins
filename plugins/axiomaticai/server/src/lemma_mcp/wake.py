@@ -26,7 +26,7 @@ def hook_run(event: dict[str, Any]) -> tuple[str, str, float] | None:
     """The run to follow and for how many seconds, or None when there is nothing to wait for."""
     tool_input = event.get("tool_input") or {}
     response = _structured(event.get("tool_response"))
-    if response.get("outcome", RUNNING) != RUNNING:
+    if not response or response.get("outcome", RUNNING) != RUNNING:
         return None
     conversation_id = response.get("conversation_id") or tool_input.get("conversation_id")
     run_id = response.get("run_id") or tool_input.get("run_id")
