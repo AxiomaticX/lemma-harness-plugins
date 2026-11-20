@@ -78,6 +78,14 @@ plugin updates:
 You can also edit `config.json` directly, or override any setting via `LEMMA_ENVIRONMENT`,
 `LEMMA_OPEN_BROWSER`, `LEMMA_DEFAULT_MODEL`, or `LEMMA_DEFAULT_MACHINE` in `mcp_config.json`.
 
+### Which local files Lemma can reach
+
+Files are sent from, and saved to, only the project (`CLAUDE_PROJECT_DIR` in Claude Code; the
+home folder in Antigravity, which does not tell plugins its workspace) and any folders listed in
+`LEMMA_ALLOWED_DIRS` (separated by `:`). Hidden files and folders, such as `.env`, `.ssh` or
+`.aws`, are always refused. The agent cannot change this list; set it in the environment that
+starts the harness.
+
 ## Sign in
 
 The first Lemma tool call opens the browser to sign in to Lemma with your usual account. The

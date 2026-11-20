@@ -1,10 +1,13 @@
 import json
+import os
 from dataclasses import replace
 from pathlib import Path
 
 import httpx
 import pytest
+from mcp import Client
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp_types import ListRootsResult, Root
 
 from lemma_mcp.client import LemmaClient
 from lemma_mcp.server import App, build_server
@@ -314,6 +317,56 @@ async def test_the_result_carries_the_link_to_the_conversation(app: App, api):
     }
 
 
+def test_files_come_only_from_the_project_or_the_allowed_folders(app: App, tmp_path: Path):
+    project, shared, outside = tmp_path / "project", tmp_path / "shared", tmp_path / "outside"
+    for folder in (project, shared, outside):
+        folder.mkdir()
+    (project / "escape").symlink_to(outside)
+    scoped = replace(app, project_dir=project, allowed_dirs=(shared,))
+
+    assert scoped.local_path("data.csv") == project.resolve() / "data.csv"
+    assert scoped.local_path(str(shared / "in.gds")) == shared.resolve() / "in.gds"
+    for raw in [str(outside / "x"), "../outside/x", "escape/x", "~/.ssh/id_rsa"]:
+        with pytest.raises(ToolError, match="outside the project|hidden"):
+            scoped.local_path(raw)
+    for raw in [".env", "keys/.ssh/id_rsa", str(shared / ".aws" / "credentials")]:
+        with pytest.raises(ToolError, match="hidden"):
+            scoped.local_path(raw)
+
+
+async def test_an_upload_from_outside_the_project_never_reaches_lemma(app: App, api, tmp_path):
+    with pytest.raises(ToolError, match="outside the project"):
+        await build_server(app).call_tool(
+            "send_message",
+            {"conversation_id": "c1", "content": "go", "files": [str(tmp_path.parent / "x")]},
+        )
+    assert not api.calls
+
+
+async def test_files_in_the_workspace_the_client_shares_are_sent(app: App, api, tmp_path: Path):
+    workspace = tmp_path.parent / f"{tmp_path.name}-workspace"
+    workspace.mkdir()
+    (workspace / "data.csv").write_text("a,b\n")
+    uploads = api.post("https://api.test/files/").mock(return_value=httpx.Response(500))
+
+    async def roots(_context):
+        return ListRootsResult(roots=[Root(uri=workspace.as_uri())])
+
+    async with Client(build_server(app), mode="legacy", list_roots_callback=roots) as client:
+        result = await client.call_tool(
+            "send_message", {"conversation_id": "c1", "content": "go", "files": ["data.csv"]}
+        )
+
+    assert uploads.called, result
+
+
+def test_from_env_reads_the_allowed_folders(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("LEMMA_ALLOWED_DIRS", f"/data/a{os.pathsep}/data/b")
+
+    assert App.from_env().allowed_dirs == (Path("/data/a"), Path("/data/b"))
+
+
 def test_from_env_uses_plugin_data_and_antigravity_harness(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
@@ -321,9 +374,11 @@ def test_from_env_uses_plugin_data_and_antigravity_harness(
     monkeypatch.setenv("PLUGIN_DATA", str(tmp_path))
     monkeypatch.setenv("LEMMA_HARNESS", "antigravity")
 
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
     loaded = App.from_env()
 
     assert loaded.background_wait is True
+    assert loaded.project_dir == Path.home()
     assert Path(loaded.client.session.store.lock.lock_file).parent == tmp_path
 
 
