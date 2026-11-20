@@ -1,6 +1,6 @@
 {
-  "name": "axiomaticai",
-  "displayName": "Axiomatic AI",
+  "name": "lemma",
+  "displayName": "Lemma",
   "version": "0.6.1",
   "description": "Hand engineering and science work to Lemma: start a conversation, send files, wait for the run, read the answer, download results, and open it in the browser.",
   "author": {
@@ -12,8 +12,7 @@
     "environment": {
       "type": "string",
       "title": "Lemma environment",
-      "description": "Which Lemma to use. Sign-in and conversations are separate per environment.",
-      "options": ["production", "staging", "dev"],
+      "description": "Which Lemma to use: production, staging, or dev. Sign-in and conversations are separate per environment.",
       "default": "production"
     },
     "open_browser": {
@@ -25,24 +24,13 @@
     "default_model": {
       "type": "string",
       "title": "Default model",
-      "description": "The model a new conversation starts on when Claude names none. Lemma's default is the model it would use in the browser.",
-      "options": [
-        "Lemma's default",
-        "Anthropic · Pro Fast",
-        "Anthropic · Pro",
-        "Anthropic · Normal",
-        "Google · Pro",
-        "Google · Normal",
-        "Open-weight · Pro",
-        "Open-weight · Normal"
-      ],
+      "description": "The model a new conversation starts on when Claude names none. Type one of: Lemma's default, Anthropic Pro Fast, Anthropic Pro, Anthropic Normal, Google Pro, Google Normal, Open-weight Pro, or Open-weight Normal. Lemma's default is the model Lemma would use in the browser.",
       "default": "Lemma's default"
     },
     "default_machine": {
       "type": "string",
       "title": "Default machine",
-      "description": "The machine a new conversation runs on when Claude names none.",
-      "options": ["Standard", "Enhanced", "High performance", "Max", "GPU"],
+      "description": "The machine a new conversation runs on when Claude names none. Type one of: Standard, Enhanced, High performance, Max, or GPU.",
       "default": "Standard"
     }
   }

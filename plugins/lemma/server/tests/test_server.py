@@ -33,6 +33,35 @@ def test_conversations_open_in_the_browser_unless_turned_off(
     assert App.from_env().open_browser is opens
 
 
+@pytest.mark.parametrize(
+    ("model", "machine", "expected_model", "expected_machine"),
+    [
+        ("Anthropic · Pro", "High performance", ("anthropic", "pro"), "high_performance"),
+        ("anthropic pro fast", "gpu", ("anthropic", "pro_fast"), "gpu"),
+        ("  OPEN-WEIGHT normal ", "high-performance", ("open", "normal"), "high_performance"),
+        ("Lemma's default", "Standard", None, "standard"),
+        ("", "", None, None),
+        ("Anthropic Ultra", "huge", None, None),
+    ],
+)
+def test_default_model_and_machine_ignore_case_and_punctuation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    model: str,
+    machine: str,
+    expected_model: tuple[str, str] | None,
+    expected_machine: str | None,
+):
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("LEMMA_DEFAULT_MODEL", model)
+    monkeypatch.setenv("LEMMA_DEFAULT_MACHINE", machine)
+
+    app = App.from_env()
+
+    assert app.default_model == expected_model
+    assert app.default_machine == expected_machine
+
+
 async def test_only_a_new_conversation_opens_in_the_browser(
     app: App, api, monkeypatch: pytest.MonkeyPatch
 ):

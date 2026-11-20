@@ -1,5 +1,5 @@
 ---
-name: lemma
+name: handoff
 description: Hand a research, engineering or scientific computing task to Lemma, Axiomatic's agent, and bring its answer and result files back. Use when the user asks for Lemma, or wants a task done in Lemma and continued in the browser.
 ---
 
