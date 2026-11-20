@@ -57,6 +57,26 @@ the `logout` tool to remove it.
 Sign-in listens for the browser's redirect on `127.0.0.1`, on the first free port of 47815,
 47816 and 47817.
 
+## What the plugin runs, sends and fetches
+
+- **Runs locally:** the `lemma-mcp` server, started by Claude Code when the plugin loads, and the
+  `lemma-wake` hook, started after a Lemma tool call that leaves a run going. Both are the Python
+  in `plugins/axiomaticai/server/`, run with `uv`.
+- **Fetches on first start:** `uv` installs the server's dependencies from PyPI, pinned by
+  `server/uv.lock`.
+- **Sends to Lemma:** over HTTPS to `api.axiomatic-ai.com`, the messages, settings and answers
+  Claude passes to Lemma's tools, and the files you name in them. Files go to the storage link
+  Lemma returns for each upload, and downloads come from the storage link Lemma returns for each
+  file.
+- **Signs in with:** `auth.axiomatic-ai.com`, through your browser. The refresh token is kept in
+  the OS keychain and sent only to `auth.axiomatic-ai.com`.
+- **Opens in your browser:** the sign-in page, and each new conversation on `lemma.axiomatic.ai`
+  unless you turned that off.
+- **Writes locally:** files you ask Claude to download, into the folders listed under "Which local
+  files Lemma can reach", and a lock file in the plugin's data directory.
+
+Nothing else is sent anywhere, and nothing runs while you aren't using Lemma.
+
 ## What the plugin contains
 
 `plugins/axiomaticai/`:
