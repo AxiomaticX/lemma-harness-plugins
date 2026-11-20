@@ -1,5 +1,6 @@
 """The Lemma API, as the signed-in user."""
 
+import re
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -9,6 +10,7 @@ from ..auth import Session
 from ..errors import BusyError, LemmaError, NotFoundError, NotLoggedInError, UsageLimitError
 
 TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+SAFE_SEGMENT = re.compile(r"[A-Za-z0-9_-]+")
 
 
 class LemmaClient:
@@ -20,6 +22,7 @@ class LemmaClient:
         self._http = http or httpx.AsyncClient(base_url=self.target.api_url, timeout=TIMEOUT)
 
     async def request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        check_path(path)
         response = await self._send(method, path, await self.session.access_token(), **kwargs)
         if response.status_code == 401:
             response = await self._send(method, path, await self.session.refresh(), **kwargs)
@@ -28,6 +31,7 @@ class LemmaClient:
 
     @asynccontextmanager
     async def stream(self, method: str, path: str, **kwargs: Any):
+        check_path(path)
         token = await self.session.access_token()
         async with self._http.stream(method, path, headers=_bearer(token), **kwargs) as response:
             if response.status_code != 401:
@@ -41,6 +45,13 @@ class LemmaClient:
 
     async def _send(self, method: str, path: str, token: str, **kwargs: Any) -> httpx.Response:
         return await self._http.request(method, path, headers=_bearer(token), **kwargs)
+
+
+def check_path(path: str) -> None:
+    """Refuse API paths whose segments could escape the endpoint they were built for."""
+    segments = path.removesuffix("/")[1:].split("/")
+    if not path.startswith("/") or not all(map(SAFE_SEGMENT.fullmatch, segments)):
+        raise LemmaError(f"Refusing to call Lemma at {path!r}: ids hold only A-Z, 0-9, - and _.")
 
 
 def _bearer(token: str) -> dict[str, str]:

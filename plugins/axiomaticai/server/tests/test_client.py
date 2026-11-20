@@ -49,3 +49,10 @@ async def test_any_other_error_carries_lemmas_detail(client: LemmaClient, api):
 
     with pytest.raises(LemmaError, match="could not be started"):
         await client.request("GET", "/ping")
+
+
+@pytest.mark.parametrize("path", ["/files/../users/me", "/files/a?b", "/files/a%2F", "/a//b", "x"])
+async def test_a_path_that_could_escape_its_endpoint_is_never_sent(client: LemmaClient, api, path):
+    with pytest.raises(LemmaError, match="Refusing"):
+        await client.request("GET", path)
+    assert not api.calls

@@ -7,11 +7,12 @@ import webbrowser
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, NotRequired, TypedDict
+from typing import Annotated, Any, Literal, NotRequired, TypedDict
 
 import httpx
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from pydantic import Field
 
 from .auth import Session
 from .client import LemmaClient, options, plan, runs
@@ -124,6 +125,7 @@ class PlanTask(TypedDict):
     evidence: NotRequired[list[dict[str, Any]]]
 
 
+Id = Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")]
 Mode = Literal["act", "plan"]
 Provider = Literal["anthropic", "google", "open"]
 Model = Literal["normal", "pro", "pro_fast"]
@@ -215,7 +217,7 @@ def _reported[**P, R](tool: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[
 def build_server(app: App) -> MCPServer:
     server = MCPServer("lemma", instructions=INSTRUCTIONS)
 
-    def outcome(conversation_id: str, ended: runs.RunResult) -> dict[str, Any]:
+    def outcome(conversation_id: Id, ended: runs.RunResult) -> dict[str, Any]:
         return {
             "outcome": ended.outcome,
             "answer": ended.answer,
@@ -223,12 +225,12 @@ def build_server(app: App) -> MCPServer:
             "url": app.target.conversation_url(conversation_id),
         }
 
-    def started(conversation_id: str, run_id: str) -> dict[str, Any]:
+    def started(conversation_id: Id, run_id: Id) -> dict[str, Any]:
         url = app.target.conversation_url(conversation_id)
         return {"conversation_id": conversation_id, "run_id": run_id, "url": url}
 
     async def send(
-        conversation_id: str,
+        conversation_id: Id,
         content: str | None,
         files: list[str] | None,
         settings: dict[str, Any],
@@ -263,7 +265,7 @@ def build_server(app: App) -> MCPServer:
     @server.tool(description=SEND_MESSAGE)
     @_reported
     async def send_message(
-        conversation_id: str,
+        conversation_id: Id,
         content: str,
         mode: Mode | None = None,
         model: Model | None = None,
@@ -277,8 +279,8 @@ def build_server(app: App) -> MCPServer:
     @server.tool(description=ANSWER_QUESTIONS)
     @_reported
     async def answer_questions(
-        conversation_id: str,
-        run_id: str,
+        conversation_id: Id,
+        run_id: Id,
         answers: list[Answer],
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
     ) -> dict[str, Any]:
@@ -302,21 +304,21 @@ def build_server(app: App) -> MCPServer:
 
     @server.tool(description=GET_PLAN)
     @_reported
-    async def get_plan(conversation_id: str) -> dict[str, Any]:
+    async def get_plan(conversation_id: Id) -> dict[str, Any]:
         return await plan.get(app.client, conversation_id)
 
     @server.tool(description=ANSWER_PLAN)
     @_reported
     async def answer_plan(
-        conversation_id: str, answers: dict[str, str], approve: bool = False
+        conversation_id: Id, answers: dict[str, str], approve: bool = False
     ) -> dict[str, Any]:
         return await plan.answer(app.client, conversation_id, answers, approve)
 
     @server.tool(description=REVIEW_TASK)
     @_reported
     async def review_task(
-        conversation_id: str,
-        task_id: str,
+        conversation_id: Id,
+        task_id: Id,
         decision: Literal["approve", "disapprove", "waive"],
         reason: str = "",
     ) -> dict[str, Any]:
@@ -325,7 +327,7 @@ def build_server(app: App) -> MCPServer:
     @server.tool(description=EDIT_PLAN)
     @_reported
     async def edit_plan(
-        conversation_id: str, revision: int, overview: str, tasks: list[PlanTask]
+        conversation_id: Id, revision: int, overview: str, tasks: list[PlanTask]
     ) -> dict[str, Any]:
         return await plan.edit(
             app.client, conversation_id, revision, overview, list(map(dict, tasks))
@@ -334,34 +336,34 @@ def build_server(app: App) -> MCPServer:
     @server.tool(description=DELETE_TASK)
     @_reported
     async def delete_task(
-        conversation_id: str, task_id: str, keep_dependents: bool = False
+        conversation_id: Id, task_id: Id, keep_dependents: bool = False
     ) -> dict[str, Any]:
         return await plan.delete_task(app.client, conversation_id, task_id, keep_dependents)
 
     @server.tool(description=REOPEN_TASK)
     @_reported
-    async def reopen_task(conversation_id: str, task_id: str) -> dict[str, Any]:
+    async def reopen_task(conversation_id: Id, task_id: Id) -> dict[str, Any]:
         return await plan.reopen_task(app.client, conversation_id, task_id)
 
     @server.tool(description=SET_TASK_CHECKS)
     @_reported
-    async def set_task_checks(conversation_id: str, task_id: str, enabled: bool) -> dict[str, Any]:
+    async def set_task_checks(conversation_id: Id, task_id: Id, enabled: bool) -> dict[str, Any]:
         return await plan.set_task_checks(app.client, conversation_id, task_id, enabled)
 
     @server.tool()
     @_reported
-    async def list_plan_revisions(conversation_id: str) -> list[dict[str, Any]]:
+    async def list_plan_revisions(conversation_id: Id) -> list[dict[str, Any]]:
         """The plan's saved revisions, oldest first: who wrote each, and which were approved."""
         return await plan.revisions(app.client, conversation_id)
 
     @server.tool(description=RESTORE_PLAN_REVISION)
     @_reported
-    async def restore_plan_revision(conversation_id: str, number: int) -> dict[str, Any]:
+    async def restore_plan_revision(conversation_id: Id, number: int) -> dict[str, Any]:
         return await plan.restore(app.client, conversation_id, number)
 
     @server.tool()
     @_reported
-    async def delete_plan(conversation_id: str) -> str:
+    async def delete_plan(conversation_id: Id) -> str:
         """Delete a conversation's plan; the files its tasks produced stay. Only as the user
         decided."""
         await plan.delete(app.client, conversation_id)
@@ -397,7 +399,7 @@ def build_server(app: App) -> MCPServer:
     @server.tool(description=RUN_PLAN)
     @_reported
     async def run_plan(
-        conversation_id: str,
+        conversation_id: Id,
         scope: Literal["next", "all"] = "all",
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
     ) -> dict[str, Any]:
@@ -406,8 +408,8 @@ def build_server(app: App) -> MCPServer:
     @server.tool(description=WAIT_FOR_RESULT)
     @_reported
     async def wait_for_result(
-        conversation_id: str,
-        run_id: str,
+        conversation_id: Id,
+        run_id: Id,
         timeout_s: int = MAX_WAIT_SECONDS,
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
     ) -> dict[str, Any]:
@@ -418,13 +420,13 @@ def build_server(app: App) -> MCPServer:
 
     @server.tool()
     @_reported
-    async def get_result(conversation_id: str, run_id: str) -> dict[str, Any]:
+    async def get_result(conversation_id: Id, run_id: Id) -> dict[str, Any]:
         """Report a run's outcome now, without waiting. Outcomes are as for wait_for_result."""
         return outcome(conversation_id, await runs.result(app.client, conversation_id, run_id))
 
     @server.tool()
     @_reported
-    async def list_files(conversation_id: str) -> list[dict[str, Any]]:
+    async def list_files(conversation_id: Id) -> list[dict[str, Any]]:
         """The files in a conversation, including those Lemma produced. notebook marks a notebook,
         which opens in the browser (open_in_browser)."""
         listed = await remote_files.list_files(app.client, conversation_id)
@@ -441,14 +443,14 @@ def build_server(app: App) -> MCPServer:
 
     @server.tool(description=DOWNLOAD_FILE)
     @_reported
-    async def download_file(conversation_id: str, name: str, dest_dir: str) -> dict[str, str]:
+    async def download_file(conversation_id: Id, name: str, dest_dir: str) -> dict[str, str]:
         saved = await remote_files.download(
             app.client, conversation_id, name, app.local_path(dest_dir)
         )
         return {"path": str(saved)}
 
     @server.tool()
-    async def open_in_browser(conversation_id: str) -> dict[str, Any]:
+    async def open_in_browser(conversation_id: Id) -> dict[str, Any]:
         """Open a conversation in Lemma in the user's default browser. If opened is false, no
         browser could be opened: give the user url instead."""
         url = app.target.conversation_url(conversation_id)
