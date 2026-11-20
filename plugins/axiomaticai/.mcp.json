@@ -4,7 +4,6 @@
       "command": "uv",
       "args": ["run", "--frozen", "--quiet", "--project", "${CLAUDE_PLUGIN_ROOT}/server", "lemma-mcp"],
       "env": {
-        "UV_PROJECT_ENVIRONMENT": "${CLAUDE_PLUGIN_DATA}/venv",
         "LEMMA_DATA_DIR": "${CLAUDE_PLUGIN_DATA}",
         "LEMMA_ENVIRONMENT": "${user_config.environment}",
         "LEMMA_OPEN_BROWSER": "${user_config.open_browser}",

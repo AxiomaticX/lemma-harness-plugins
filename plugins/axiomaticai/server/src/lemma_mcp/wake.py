@@ -89,14 +89,24 @@ async def follow(client: LemmaClient, conversation_id: str, run_id: str, window:
     return still_running_line(conversation_id, run_id, window)
 
 
+def data_dir(argument: Path | None) -> Path:
+    """Where sign-in is kept: --data-dir, else the plugin data directory Claude Code exports."""
+    if argument is not None:
+        return argument
+    exported = os.environ.get("CLAUDE_PLUGIN_DATA")
+    if not exported:
+        raise SystemExit("lemma-wake needs --data-dir or CLAUDE_PLUGIN_DATA.")
+    return Path(exported)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="lemma-wake")
-    parser.add_argument("--data-dir", type=Path, required=True)
+    parser.add_argument("--data-dir", type=Path)
     args = parser.parse_args()
     found = hook_run(json.load(sys.stdin))
     if found is None:
         return
     lemma = target(os.environ.get("CLAUDE_PLUGIN_OPTION_ENVIRONMENT"))
-    client = LemmaClient(Session(lemma, args.data_dir, interactive=False))
+    client = LemmaClient(Session(lemma, data_dir(args.data_dir), interactive=False))
     print(asyncio.run(follow(client, *found)), flush=True)
     sys.exit(WAKE_CLAUDE)

@@ -96,3 +96,14 @@ async def test_an_unexpected_failure_is_retried_rather_than_ending_the_wait(monk
     monkeypatch.setattr(wake, "RETRY_SECONDS", 0)
 
     assert await wake.follow(None, "c1", "r1", 3600) == wake.finished_line("c1", "r1", "answered")
+
+
+def test_the_data_dir_comes_from_the_plugin_data_claude_code_exports(monkeypatch, tmp_path):
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path))
+
+    assert wake.data_dir(None) == tmp_path
+    assert wake.data_dir(tmp_path / "given") == tmp_path / "given"
+
+    monkeypatch.delenv("CLAUDE_PLUGIN_DATA")
+    with pytest.raises(SystemExit):
+        wake.data_dir(None)
