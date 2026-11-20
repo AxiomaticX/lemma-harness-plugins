@@ -26,6 +26,7 @@ from .config import CONFIG_FILENAME, Target, load_settings, save_settings, targe
 from .errors import LemmaError
 
 MAX_WAIT_SECONDS = 600
+CODEX_MAX_WAIT_SECONDS = 240
 WAKE_AFTER_MINUTES = 60
 MAX_WAKE_MINUTES = 23 * 60
 
@@ -42,6 +43,13 @@ BACKGROUND_INSTRUCTIONS = (
     "run ends. Do not answer a question you handed to Lemma yourself; report Lemma's answer "
     "when the run ends."
 )
+FOREGROUND_INSTRUCTIONS = (
+    "Lemma is Axiomatic's research and engineering agent. Start a conversation with "
+    "create_conversation, and continue it with send_message. Runs take minutes to hours; after "
+    "starting a run, give the user url and call wait_for_result to wait for it (up to 240 seconds "
+    "per call; call it again if outcome is still running). Do not answer a question you handed to "
+    "Lemma yourself; report Lemma's answer when the run ends."
+)
 WAKE = (
     "You are woken when the run ends, or after wake_after_minutes (default 60) with word that it "
     "is still running; set it higher only when you know the run will take hours."
@@ -49,6 +57,11 @@ WAKE = (
 BACKGROUND_WAKE = (
     "Call wait_for_result next with conversation_id and run_id; it runs in the background and "
     "wakes you when the run ends, or after wake_after_minutes (default 60) with outcome running."
+)
+FOREGROUND_WAKE = (
+    "Give the user url, then call wait_for_result with conversation_id and run_id; it waits up "
+    "to 240 seconds per call. If outcome is still running, call wait_for_result again until it "
+    "ends."
 )
 CREATE_CONVERSATION = (
     "Start a new Lemma conversation with its first message. mode is act (work straight away) or "
@@ -78,6 +91,13 @@ BACKGROUND_WAIT_FOR_RESULT = (
     "(answer holds the reply), waiting_for_input (questions holds what Lemma needs decided: ask "
     "the user, then answer_questions), or no_answer (the run ended without a reply: give the "
     "user url)."
+)
+FOREGROUND_WAIT_FOR_RESULT = (
+    "Wait up to timeout_s seconds (default and max 240) for a run to finish, then report it. "
+    "outcome is running (still going: call wait_for_result again, or let the user know with url "
+    "and check later), answered (answer holds the reply), waiting_for_input (questions holds "
+    "what Lemma needs decided: ask the user, then answer_questions), or no_answer (the run ended "
+    "without a reply: give the user url)."
 )
 ANSWER_QUESTIONS = (
     "Answer what a run stopped on: one entry per question, each with the question's id, approved "
@@ -245,6 +265,7 @@ class App:
     default_model: tuple[str, str] | None = None
     default_machine: str | None = None
     background_wait: bool = False
+    foreground_wait: bool = False
     data_dir: Path | None = None
     allowed_dirs: tuple[Path, ...] = ()
 
@@ -275,6 +296,7 @@ class App:
             default_model=MODEL_CHOICES.get(raw_model),
             default_machine=MACHINE_CHOICES.get(raw_machine),
             background_wait=harness == "antigravity",
+            foreground_wait=harness == "codex",
             data_dir=data_dir,
             allowed_dirs=tuple(
                 Path(p) for p in os.environ.get("LEMMA_ALLOWED_DIRS", "").split(os.pathsep) if p
@@ -438,9 +460,20 @@ def _reported[**P, R](tool: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[
 
 
 def build_server(app: App) -> MCPServer:
-    instructions = BACKGROUND_INSTRUCTIONS if app.background_wait else INSTRUCTIONS
-    wake = BACKGROUND_WAKE if app.background_wait else WAKE
-    wait_description = BACKGROUND_WAIT_FOR_RESULT if app.background_wait else WAIT_FOR_RESULT
+    if app.background_wait:
+        instructions, wake, wait_description = (
+            BACKGROUND_INSTRUCTIONS,
+            BACKGROUND_WAKE,
+            BACKGROUND_WAIT_FOR_RESULT,
+        )
+    elif app.foreground_wait:
+        instructions, wake, wait_description = (
+            FOREGROUND_INSTRUCTIONS,
+            FOREGROUND_WAKE,
+            FOREGROUND_WAIT_FOR_RESULT,
+        )
+    else:
+        instructions, wake, wait_description = INSTRUCTIONS, WAKE, WAIT_FOR_RESULT
     server = MCPServer("lemma", instructions=instructions)
 
     def outcome(conversation_id: Id, ended: runs.RunResult) -> dict[str, Any]:
@@ -678,8 +711,9 @@ def build_server(app: App) -> MCPServer:
                 window = float(minutes * 60)
             ended = await runs.wait_window(app.client, conversation_id, run_id, window)
             return outcome(conversation_id, ended)
-        requested = MAX_WAIT_SECONDS if timeout_s is None else timeout_s
-        timeout = max(0, min(requested, MAX_WAIT_SECONDS))
+        limit = CODEX_MAX_WAIT_SECONDS if app.foreground_wait else MAX_WAIT_SECONDS
+        requested = limit if timeout_s is None else timeout_s
+        timeout = max(0, min(requested, limit))
         return outcome(
             conversation_id, await runs.wait(app.client, conversation_id, run_id, timeout)
         )

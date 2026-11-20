@@ -118,6 +118,10 @@ Runs take minutes, and long ones take hours. Do not poll `get_result` in a loop.
   and wakes you with the outcome when the run ends, or after `wake_after_minutes` (60 by default)
   with outcome `running` (call `wait_for_result` again to keep waiting). Meanwhile, carry on only
   with work that does not answer what you handed over.
+- In Codex, call `wait_for_result` after starting a run: each call waits up to 4 minutes (240s)
+  and returns the outcome. If it is still `running`, call `wait_for_result` again until it ends
+  (or tell the user it is still running with `url` and check later), without answering what you
+  handed over yourself.
 - Set `wake_after_minutes` higher only when you know the run will take hours, such as a long
   simulation or a whole plan.
 - `get_result` reports the outcome at once without waiting.

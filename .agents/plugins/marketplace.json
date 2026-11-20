@@ -1,0 +1,20 @@
+{
+  "name": "axiomatic-ai",
+  "interface": {
+    "displayName": "Axiomatic AI"
+  },
+  "plugins": [
+    {
+      "name": "axiomaticai",
+      "source": {
+        "source": "local",
+        "path": "./plugins/axiomaticai"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

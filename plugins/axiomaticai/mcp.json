@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "lemma": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--frozen", "--quiet", "--project", "${PLUGIN_ROOT}/server", "lemma-mcp"],
+      "env": {
+        "UV_PROJECT_ENVIRONMENT": "${PLUGIN_DATA}/venv",
+        "LEMMA_DATA_DIR": "${PLUGIN_DATA}",
+        "LEMMA_HARNESS": "codex"
+      }
+    }
+  }
+}

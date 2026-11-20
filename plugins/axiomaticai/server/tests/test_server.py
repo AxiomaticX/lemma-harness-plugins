@@ -508,6 +508,51 @@ async def test_antigravity_mode_guides_background_wait_and_follows_wake_window(
     assert recorded == [("c1", "r1", 7200.0), ("c1", "r1", 45.0)]
 
 
+def test_from_env_uses_plugin_data_and_codex_harness(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    monkeypatch.delenv("LEMMA_DATA_DIR", raising=False)
+    monkeypatch.setenv("PLUGIN_DATA", str(tmp_path))
+    monkeypatch.setenv("LEMMA_HARNESS", "codex")
+
+    loaded = App.from_env()
+
+    assert loaded.background_wait is False
+    assert loaded.foreground_wait is True
+    assert Path(loaded.client.session.store.lock.lock_file).parent == tmp_path
+
+
+async def test_codex_mode_guides_foreground_chunks_and_caps_wait_below_codex_timeout(
+    app: App, monkeypatch: pytest.MonkeyPatch
+):
+    seen: list[float] = []
+
+    async def fake_wait(_client, _conversation_id: str, _run_id: str, timeout: float):
+        seen.append(timeout)
+        from lemma_mcp.client.runs import RunResult
+
+        return RunResult("running", None)
+
+    monkeypatch.setattr("lemma_mcp.server.runs.wait", fake_wait)
+    server = build_server(replace(app, foreground_wait=True))
+
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    assert "240 seconds" in (server.instructions or "")
+    assert "Do not answer a question you handed to Lemma yourself" in (server.instructions or "")
+    assert "240 seconds" in (tools["create_conversation"].description or "")
+    assert "default and max 240" in (tools["wait_for_result"].description or "")
+
+    await server.call_tool("wait_for_result", {"conversation_id": "c1", "run_id": "r1"})
+    await server.call_tool(
+        "wait_for_result", {"conversation_id": "c1", "run_id": "r1", "timeout_s": 600}
+    )
+    await server.call_tool(
+        "wait_for_result", {"conversation_id": "c1", "run_id": "r1", "timeout_s": 45}
+    )
+
+    assert seen == [240, 240, 45]
+
+
 async def test_claude_mode_wait_for_result_uses_foreground_timeout(
     app: App, monkeypatch: pytest.MonkeyPatch
 ):

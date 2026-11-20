@@ -1,11 +1,11 @@
 # Axiomatic harness plugins
 
 Plugins that let agent harnesses use Axiomatic products. This repository is also the
-`axiomatic-ai` Claude Code marketplace.
+`axiomatic-ai` marketplace for Claude Code and OpenAI Codex.
 
 | Plugin | What it does |
 | --- | --- |
-| `axiomaticai` | Hand a task to Lemma from Claude Code or Google Antigravity: start a conversation, send local files, wait for the run, read the answer, download results, open the conversation in the browser, and search and read earlier conversations. |
+| `axiomaticai` | Hand a task to Lemma from Claude Code, Google Antigravity, or OpenAI Codex: start a conversation, send local files, wait for the run, read the answer, download results, open the conversation in the browser, and search and read earlier conversations. |
 
 ## Install
 
@@ -78,6 +78,35 @@ plugin updates:
 You can also edit `config.json` directly, or override any setting via `LEMMA_ENVIRONMENT`,
 `LEMMA_OPEN_BROWSER`, `LEMMA_DEFAULT_MODEL`, or `LEMMA_DEFAULT_MACHINE` in `mcp_config.json`.
 
+### OpenAI Codex
+
+Requires OpenAI Codex (CLI or ChatGPT desktop app). Add this repository as a marketplace and
+install `axiomaticai`:
+
+```
+codex plugin marketplace add AxiomaticX/axiomatic-harness-plugins
+codex plugin add axiomaticai@axiomatic-ai
+```
+
+Or open `/plugins` in Codex (or the Plugins Directory in the ChatGPT desktop app), choose the
+**Axiomatic AI** marketplace, and install **Axiomatic AI**. To enable it for a single trusted repo,
+add to `.codex/config.toml`:
+
+```toml
+[plugins."axiomaticai@axiomatic-ai"]
+enabled = true
+```
+
+To change settings in Codex, ask the agent to configure Lemma (for example, *"configure Lemma to
+use staging and don't open the browser"*). That calls `configure`, applies immediately, and saves
+to `${PLUGIN_DATA}/config.json` so settings survive plugin updates. You can also override settings
+via `LEMMA_ENVIRONMENT`, `LEMMA_OPEN_BROWSER`, `LEMMA_DEFAULT_MODEL`, `LEMMA_DEFAULT_MACHINE`, or
+`LEMMA_ALLOWED_DIRS` in the environment that starts Codex.
+
+Because Codex has no background wake-up hook for plugins, `wait_for_result` waits in chunks of up
+to 240 seconds (safely below Codex's 300-second default MCP tool timeout) and returns `running`
+when a run takes longer, so Codex calls it again until the run ends.
+
 ### Which local files Lemma can reach
 
 Files are sent from, and saved to, the open workspace (the folders the harness reports over MCP),
@@ -100,19 +129,22 @@ Sign-in listens for the browser's redirect on `127.0.0.1`, on the first free por
 
 `plugins/axiomaticai/`:
 
-- `.claude-plugin/plugin.json` and `.antigravity-plugin/plugin.json`: plugin manifests for Claude
-  Code and Google Antigravity.
-- `.mcp.json` (Claude Code) and `mcp_config.json` (Antigravity): a local stdio MCP server, run
-  with `uv` from `server/`. Its virtualenv lives in the plugin's data directory, so plugin
-  updates don't rebuild it in place. In Antigravity, `wait_for_result` is configured to run in
-  the background (`"background": "always"`, `"timeoutSeconds": -1`) and wake the agent when the
-  run ends.
+- `plugin.json` (Agent Plugins v1 / OpenAI Codex), `.codex-plugin/plugin.json` (Codex env-var
+  overlay and legacy fallback), `.claude-plugin/plugin.json` (Claude Code), and
+  `.antigravity-plugin/plugin.json` (Google Antigravity): plugin manifests.
+- `.agents/plugins/marketplace.json` (Codex) and `.claude-plugin/marketplace.json` (Claude Code):
+  repository marketplace catalogs at the repo root.
+- `mcp.json` (Agent Plugins v1 / Codex), `.mcp.json` (Claude Code), and `mcp_config.json`
+  (Antigravity): a local stdio MCP server, run with `uv` from `server/`. Its virtualenv lives in
+  the plugin's data directory, so plugin updates don't rebuild it in place. In Antigravity,
+  `wait_for_result` is configured to run in the background (`"background": "always"`,
+  `"timeoutSeconds": -1`) and wake the agent when the run ends.
 - `hooks/hooks.json` (Claude Code): after `send_message` or a `wait_for_result` that found the
   run still going, a background hook waits on the run and wakes Claude when it ends, or after
   `wake_after_minutes` (60 by default) to say it is still running. Nothing runs while you aren't
   using Lemma.
 - `skills/lemma/SKILL.md`: how an agent should work with Lemma.
-- `assets/logo.svg`: plugin icon for Antigravity.
+- `assets/logo.svg`: plugin icon for Antigravity and Codex.
 - `server/`: the `lemma-mcp` server and the `lemma-wake` hook, in one Python package.
 
 All file transfer goes through `server/src/lemma_mcp/client/files.py`.
@@ -147,4 +179,11 @@ directory):
 
 ```
 agy plugin install /path/to/axiomatic-harness-plugins/plugins/axiomaticai
+```
+
+To try a local checkout in Codex:
+
+```
+codex plugin marketplace add /path/to/axiomatic-harness-plugins
+codex plugin add axiomaticai@axiomatic-ai
 ```

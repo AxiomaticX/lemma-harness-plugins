@@ -1,0 +1,51 @@
+{
+  "name": "axiomaticai",
+  "version": "0.6.0",
+  "description": "Hand research, engineering, and scientific computing tasks to Lemma—run workflows or multi-step plans in the background, search past conversations, and bring answers and result files back into your workspace.",
+  "author": {
+    "name": "Axiomatic AI",
+    "email": "developers@axiomatic-ai.com",
+    "url": "https://axiomatic-ai.com"
+  },
+  "homepage": "https://lemma.axiomatic.ai",
+  "repository": "https://github.com/AxiomaticX/axiomatic-harness-plugins",
+  "keywords": ["axiomatic", "lemma"],
+  "skills": "./skills/",
+  "hooks": {
+    "hooks": {}
+  },
+  "mcpServers": {
+    "lemma": {
+      "command": "uv",
+      "args": ["run", "--frozen", "--quiet", "--project", "./server", "lemma-mcp"],
+      "cwd": ".",
+      "env": {
+        "LEMMA_HARNESS": "codex"
+      },
+      "env_vars": [
+        "LEMMA_ALLOWED_DIRS",
+        "LEMMA_ENVIRONMENT",
+        "LEMMA_OPEN_BROWSER",
+        "LEMMA_DEFAULT_MODEL",
+        "LEMMA_DEFAULT_MACHINE"
+      ]
+    }
+  },
+  "interface": {
+    "displayName": "Axiomatic AI",
+    "shortDescription": "Hand research, engineering, and scientific computing work to Lemma.",
+    "longDescription": "Connect your agent to Lemma, Axiomatic AI's research and engineering agent. Hand off long-running simulations, literature surveys, data analysis, or ready-made workflows from your workspace—attach local files, let Lemma work on its own compute (including GPU machines), review plans or answer questions when it pauses, pull answers and result files back locally, and search past conversations.",
+    "developerName": "Axiomatic AI",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "websiteURL": "https://lemma.axiomatic.ai",
+    "defaultPrompt": [
+      "Ask Lemma to survey recent papers on a research topic",
+      "Draft a Lemma plan to analyze data in this workspace",
+      "List Lemma's ready-made workflows and run one on a project file"
+    ],
+    "brandColor": "#18181B",
+    "composerIcon": "./assets/logo.svg",
+    "logo": "./assets/logo.svg"
+  }
+}
