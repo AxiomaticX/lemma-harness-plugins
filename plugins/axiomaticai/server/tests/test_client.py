@@ -1,3 +1,5 @@
+from importlib.metadata import version
+
 import httpx
 import pytest
 from conftest import TOKEN_URL, token_response
@@ -20,7 +22,8 @@ async def test_calls_name_the_plugin_version_and_harness(signed_in, api, monkeyp
 
     await LemmaClient(signed_in).request("GET", "/ping")
 
-    assert route.calls.last.request.headers["User-Agent"] == "lemma-mcp/0.7.0 (codex)"
+    expected = f"lemma-mcp/{version('lemma-mcp')} (codex)"
+    assert route.calls.last.request.headers["User-Agent"] == expected
 
 
 async def test_a_rejected_token_is_refreshed_once_and_the_call_retried(client: LemmaClient, api):
