@@ -37,3 +37,10 @@ def test_settings_merge_persist_and_ignore_missing_or_corrupt_file(tmp_path: Pat
 
     (tmp_path / "config.json").write_text("{not json", encoding="utf-8")
     assert load_settings(tmp_path) == {}
+
+
+def test_settings_are_private_to_the_user_and_leave_no_temp_files(tmp_path: Path):
+    save_settings(tmp_path, {"environment": "staging"})
+
+    assert (tmp_path / "config.json").stat().st_mode & 0o777 == 0o600
+    assert [p.name for p in tmp_path.iterdir()] == ["config.json"]

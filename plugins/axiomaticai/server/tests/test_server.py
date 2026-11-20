@@ -283,6 +283,13 @@ async def test_a_lemma_failure_reaches_the_agent_as_its_own_message(app: App, ap
         )
 
 
+@pytest.mark.parametrize("bad", ["c1/../../users/me", "c1?x=1", "c1#x", "c%2F1", ""])
+async def test_an_id_that_could_reach_another_endpoint_is_refused(app: App, api, bad):
+    with pytest.raises(ToolError):
+        await build_server(app).call_tool("get_result", {"conversation_id": bad, "run_id": "r1"})
+    assert not api.calls
+
+
 async def test_the_result_carries_the_link_to_the_conversation(app: App, api):
     api.get("https://api.test/conversations/c1/runs/r1").mock(
         return_value=httpx.Response(
