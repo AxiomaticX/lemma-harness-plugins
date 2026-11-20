@@ -60,29 +60,23 @@ async def test_no_match_is_an_empty_list(client: LemmaClient, api):
     assert await conversations.search(client, "grating") == []
 
 
-async def test_a_transcript_page_comes_back_with_the_cursor_for_earlier_messages(
+async def test_a_transcript_page_asks_for_its_place_and_comes_back_with_the_total(
     client: LemmaClient, api
 ):
-    route = api.get(TRANSCRIPT).mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "messages": [
-                    {"index": 40, "source": "user", "text": "now plot it"},
-                    {"index": 43, "source": "assistant", "text": "Here is the plot."},
-                ],
-                "before": 40,
-            },
-        )
-    )
-
-    page = await conversations.transcript(client, "c1", limit=2, before=50)
-
-    assert dict(route.calls.last.request.url.params) == {"limit": "2", "before": "50"}
-    assert page == {
+    page = {
         "messages": [
-            {"source": "user", "text": "now plot it"},
-            {"source": "assistant", "text": "Here is the plot."},
+            {"index": 43, "source": "assistant", "text": "Here is the plot."},
+            {"index": 42, "source": "user", "text": "now plot it"},
         ],
-        "before": 40,
+        "total": 44,
     }
+    route = api.get(TRANSCRIPT).mock(return_value=httpx.Response(200, json=page))
+
+    found = await conversations.transcript(client, "c1", limit=2, index=0, order="latest")
+
+    assert dict(route.calls.last.request.url.params) == {
+        "limit": "2",
+        "index": "0",
+        "order": "latest",
+    }
+    assert found == page

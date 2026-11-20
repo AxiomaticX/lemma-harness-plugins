@@ -49,9 +49,10 @@ find it with `find_conversations`, searching with the distinctive words they use
   active. Several plausible matches: ask the user which one they mean. No match: say the search
   found nothing, not that the conversation does not exist, and try other words they give you. Do
   not start a new conversation unless they ask.
-- Before you send to it, read it with `read_conversation`. It returns the latest messages; pass
-  `before` to go further back, only as far as the next message needs. Then write that message
-  from what you read and send it with `send_message`.
+- Before you send to it, read it with `read_conversation`. It returns the latest 10 messages,
+  newest first; raise `index` by the page size to go further back, only as far as the next
+  message needs, or pass `order` `oldest` to read from the start. Then write that message from
+  what you read and send it with `send_message`.
 - `busy` means a run is going in it now, and you have no run id to wait on. Tell the user, give
   them `url`, and send to it only once they say the run has finished.
 
@@ -124,6 +125,12 @@ Runs take minutes, and long ones take hours. Do not poll in a loop.
 
 Only one run can be active in a conversation. If `send_message` says the conversation is busy,
 wait for the current run first, or start a new conversation.
+
+## Long results
+
+Every tool's output is held to a cap the user sets. A longer result comes back cut, with a note
+at the end. To get the rest, call the same tool again with the same arguments and `output_file`
+set to a local path, then read that file.
 
 ## Bring results back
 

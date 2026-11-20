@@ -1,6 +1,8 @@
 """The Lemma MCP tools: hand work to Lemma, wait for it, and bring the results back."""
 
 import functools
+import inspect
+import json
 import os
 import uuid
 import webbrowser
@@ -21,6 +23,12 @@ from .errors import LemmaError
 
 MAX_WAIT_SECONDS = 600
 WAKE_AFTER_MINUTES = 60
+DEFAULT_MAX_OUTPUT_CHARS = 40_000
+CUT_OUTPUT = (
+    "[Output cut at {cap} of {total} characters. To get the rest, call this tool again with the "
+    "same arguments and output_file set to a local path; the whole output is saved there, never "
+    "over an existing file.]"
+)
 
 INSTRUCTIONS = (
     "Lemma is Axiomatic's research and engineering agent. Start a conversation with "
@@ -142,9 +150,10 @@ FIND_CONVERSATIONS = (
     "characters, and some accounts are searched only across their most recent conversations."
 )
 READ_CONVERSATION = (
-    "Read what the user wrote and Lemma replied in a conversation, oldest first: the latest "
-    "limit messages (1 to 100), or those before before. before comes back null once there is "
-    "nothing earlier."
+    "Read what the user wrote and Lemma replied in a conversation, a page of limit messages "
+    "(1 to 100) at a time. order latest counts index from the newest message and returns the "
+    "page newest first; order oldest counts from the first and returns it oldest first. total is "
+    "how many messages the conversation holds; index runs from 0 to total - 1."
 )
 MAX_READ_MESSAGES = 100
 
@@ -172,6 +181,13 @@ MACHINE_CHOICES: dict[str, str] = {
 }
 
 
+def _max_output_chars(raw: str | None) -> int:
+    try:
+        return max(1, int(raw or ""))
+    except ValueError:
+        return DEFAULT_MAX_OUTPUT_CHARS
+
+
 @dataclass
 class App:
     target: Target
@@ -180,6 +196,7 @@ class App:
     open_browser: bool
     default_model: tuple[str, str] | None = None
     default_machine: str | None = None
+    max_output_chars: int = DEFAULT_MAX_OUTPUT_CHARS
 
     @classmethod
     def from_env(cls) -> "App":
@@ -192,6 +209,7 @@ class App:
             open_browser=os.environ.get("LEMMA_OPEN_BROWSER", "").lower() != "false",
             default_model=MODEL_CHOICES.get(os.environ.get("LEMMA_DEFAULT_MODEL", "")),
             default_machine=MACHINE_CHOICES.get(os.environ.get("LEMMA_DEFAULT_MACHINE", "")),
+            max_output_chars=_max_output_chars(os.environ.get("LEMMA_MAX_TOOL_OUTPUT_CHARS")),
         )
 
     def starting(
@@ -211,6 +229,23 @@ class App:
         path = Path(raw).expanduser()
         return path if path.is_absolute() else self.project_dir / path
 
+    def fit(self, result: Any, output_file: str | None) -> str:
+        """``result`` as text when it fits the output cap; past it, saved whole to
+        ``output_file``, or cut at the cap with word of how to get the rest."""
+        text = result if isinstance(result, str) else json.dumps(result, indent=2)
+        if len(text) <= self.max_output_chars:
+            return text
+        if output_file is None:
+            note = CUT_OUTPUT.format(cap=self.max_output_chars, total=len(text))
+            return f"{text[: self.max_output_chars]}\n\n{note}"
+        path = remote_files.free_path(self.local_path(output_file))
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+        except OSError as e:
+            raise ToolError(f"Could not save the output to {path}: {e}") from e
+        return f"The whole output, {len(text)} characters, is saved to {path}."
+
 
 def _reported[**P, R](tool: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
     """Lemma failures come back as their own message rather than a bare tool error."""
@@ -229,6 +264,28 @@ def _reported[**P, R](tool: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[
 
 def build_server(app: App) -> MCPServer:
     server = MCPServer("lemma", instructions=INSTRUCTIONS)
+
+    def tool(description: str | None = None):
+        """Register a tool whose output is held to the cap, with output_file for the overflow."""
+
+        def register(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[str]]:
+            @functools.wraps(fn)
+            async def call(*args: Any, output_file: str | None = None, **kwargs: Any) -> str:
+                return app.fit(await fn(*args, **kwargs), output_file)
+
+            signature = inspect.signature(fn)
+            output_file = inspect.Parameter(
+                "output_file",
+                inspect.Parameter.KEYWORD_ONLY,
+                default=None,
+                annotation=str | None,
+            )
+            call.__signature__ = signature.replace(
+                parameters=[*signature.parameters.values(), output_file], return_annotation=str
+            )
+            return server.tool(description=description, structured_output=False)(call)
+
+        return register
 
     def outcome(conversation_id: str, ended: runs.RunResult) -> dict[str, Any]:
         return {
@@ -253,7 +310,7 @@ def build_server(app: App) -> MCPServer:
         chosen = {key: value for key, value in settings.items() if value is not None}
         return await runs.send(app.client, conversation_id, content, file_ids, chosen)
 
-    @server.tool(description=CREATE_CONVERSATION)
+    @tool(description=CREATE_CONVERSATION)
     @_reported
     async def create_conversation(
         content: str,
@@ -275,7 +332,7 @@ def build_server(app: App) -> MCPServer:
             webbrowser.open(app.target.conversation_url(conversation_id))
         return started(conversation_id, run_id)
 
-    @server.tool(description=SEND_MESSAGE)
+    @tool(description=SEND_MESSAGE)
     @_reported
     async def send_message(
         conversation_id: str,
@@ -289,7 +346,7 @@ def build_server(app: App) -> MCPServer:
         settings = {"mode": mode, "model": model, "provider": provider}
         return started(conversation_id, await send(conversation_id, content, files, settings))
 
-    @server.tool(description=ANSWER_QUESTIONS)
+    @tool(description=ANSWER_QUESTIONS)
     @_reported
     async def answer_questions(
         conversation_id: str,
@@ -300,7 +357,7 @@ def build_server(app: App) -> MCPServer:
         resumed = await runs.answer(app.client, conversation_id, run_id, list(map(dict, answers)))
         return started(conversation_id, resumed)
 
-    @server.tool()
+    @tool()
     @_reported
     async def list_options() -> dict[str, Any]:
         """The model tiers (empty: no choice), the tiers each provider runs, and the machines."""
@@ -315,19 +372,19 @@ def build_server(app: App) -> MCPServer:
             "machines": await options.machines(app.client),
         }
 
-    @server.tool(description=GET_PLAN)
+    @tool(description=GET_PLAN)
     @_reported
     async def get_plan(conversation_id: str) -> dict[str, Any]:
         return await plan.get(app.client, conversation_id)
 
-    @server.tool(description=ANSWER_PLAN)
+    @tool(description=ANSWER_PLAN)
     @_reported
     async def answer_plan(
         conversation_id: str, answers: dict[str, str], approve: bool = False
     ) -> dict[str, Any]:
         return await plan.answer(app.client, conversation_id, answers, approve)
 
-    @server.tool(description=REVIEW_TASK)
+    @tool(description=REVIEW_TASK)
     @_reported
     async def review_task(
         conversation_id: str,
@@ -337,7 +394,7 @@ def build_server(app: App) -> MCPServer:
     ) -> dict[str, Any]:
         return await plan.review(app.client, conversation_id, task_id, decision, reason)
 
-    @server.tool(description=EDIT_PLAN)
+    @tool(description=EDIT_PLAN)
     @_reported
     async def edit_plan(
         conversation_id: str, revision: int, overview: str, tasks: list[PlanTask]
@@ -346,35 +403,35 @@ def build_server(app: App) -> MCPServer:
             app.client, conversation_id, revision, overview, list(map(dict, tasks))
         )
 
-    @server.tool(description=DELETE_TASK)
+    @tool(description=DELETE_TASK)
     @_reported
     async def delete_task(
         conversation_id: str, task_id: str, keep_dependents: bool = False
     ) -> dict[str, Any]:
         return await plan.delete_task(app.client, conversation_id, task_id, keep_dependents)
 
-    @server.tool(description=REOPEN_TASK)
+    @tool(description=REOPEN_TASK)
     @_reported
     async def reopen_task(conversation_id: str, task_id: str) -> dict[str, Any]:
         return await plan.reopen_task(app.client, conversation_id, task_id)
 
-    @server.tool(description=SET_TASK_CHECKS)
+    @tool(description=SET_TASK_CHECKS)
     @_reported
     async def set_task_checks(conversation_id: str, task_id: str, enabled: bool) -> dict[str, Any]:
         return await plan.set_task_checks(app.client, conversation_id, task_id, enabled)
 
-    @server.tool()
+    @tool()
     @_reported
     async def list_plan_revisions(conversation_id: str) -> list[dict[str, Any]]:
         """The plan's saved revisions, oldest first: who wrote each, and which were approved."""
         return await plan.revisions(app.client, conversation_id)
 
-    @server.tool(description=RESTORE_PLAN_REVISION)
+    @tool(description=RESTORE_PLAN_REVISION)
     @_reported
     async def restore_plan_revision(conversation_id: str, number: int) -> dict[str, Any]:
         return await plan.restore(app.client, conversation_id, number)
 
-    @server.tool()
+    @tool()
     @_reported
     async def delete_plan(conversation_id: str) -> str:
         """Delete a conversation's plan; the files its tasks produced stay. Only as the user
@@ -382,13 +439,13 @@ def build_server(app: App) -> MCPServer:
         await plan.delete(app.client, conversation_id)
         return "Deleted the plan."
 
-    @server.tool()
+    @tool()
     @_reported
     async def list_workflows() -> list[dict[str, Any]]:
         """Lemma's ready-made workflows, each with the inputs it asks for."""
         return await options.workflows(app.client)
 
-    @server.tool(description=START_WORKFLOW)
+    @tool(description=START_WORKFLOW)
     @_reported
     async def start_workflow(
         name: str,
@@ -409,7 +466,7 @@ def build_server(app: App) -> MCPServer:
             webbrowser.open(app.target.conversation_url(conversation_id))
         return started(conversation_id, run_id)
 
-    @server.tool(description=RUN_PLAN)
+    @tool(description=RUN_PLAN)
     @_reported
     async def run_plan(
         conversation_id: str,
@@ -418,7 +475,7 @@ def build_server(app: App) -> MCPServer:
     ) -> dict[str, Any]:
         return started(conversation_id, await plan.run(app.client, conversation_id, scope))
 
-    @server.tool(description=WAIT_FOR_RESULT)
+    @tool(description=WAIT_FOR_RESULT)
     @_reported
     async def wait_for_result(
         conversation_id: str,
@@ -431,13 +488,13 @@ def build_server(app: App) -> MCPServer:
             conversation_id, await runs.wait(app.client, conversation_id, run_id, timeout)
         )
 
-    @server.tool()
+    @tool()
     @_reported
     async def get_result(conversation_id: str, run_id: str) -> dict[str, Any]:
         """Report a run's outcome now, without waiting. Outcomes are as for wait_for_result."""
         return outcome(conversation_id, await runs.result(app.client, conversation_id, run_id))
 
-    @server.tool()
+    @tool()
     @_reported
     async def list_files(conversation_id: str) -> list[dict[str, Any]]:
         """The files in a conversation, including those Lemma produced. notebook marks a notebook,
@@ -454,7 +511,7 @@ def build_server(app: App) -> MCPServer:
             for f in listed
         ]
 
-    @server.tool(description=DOWNLOAD_FILE)
+    @tool(description=DOWNLOAD_FILE)
     @_reported
     async def download_file(conversation_id: str, name: str, dest_dir: str) -> dict[str, str]:
         saved = await remote_files.download(
@@ -462,7 +519,7 @@ def build_server(app: App) -> MCPServer:
         )
         return {"path": str(saved)}
 
-    @server.tool(description=FIND_CONVERSATIONS)
+    @tool(description=FIND_CONVERSATIONS)
     @_reported
     async def find_conversations(query: str) -> list[dict[str, Any]]:
         return [
@@ -470,29 +527,34 @@ def build_server(app: App) -> MCPServer:
             for hit in await conversations.search(app.client, query)
         ]
 
-    @server.tool(description=READ_CONVERSATION)
+    @tool(description=READ_CONVERSATION)
     @_reported
     async def read_conversation(
-        conversation_id: str, limit: int = 20, before: int | None = None
+        conversation_id: str,
+        limit: int = 10,
+        index: int = 0,
+        order: Literal["latest", "oldest"] = "latest",
     ) -> dict[str, Any]:
         limit = max(1, min(limit, MAX_READ_MESSAGES))
-        return await conversations.transcript(app.client, conversation_id, limit, before)
+        return await conversations.transcript(
+            app.client, conversation_id, limit, max(0, index), order
+        )
 
-    @server.tool()
+    @tool()
     async def open_in_browser(conversation_id: str) -> dict[str, Any]:
         """Open a conversation in Lemma in the user's default browser. If opened is false, no
         browser could be opened: give the user url instead."""
         url = app.target.conversation_url(conversation_id)
         return {"opened": webbrowser.open(url), "url": url}
 
-    @server.tool()
+    @tool()
     @_reported
     async def login() -> str:
         """Sign in to Lemma in the browser. Other tools do this on first use."""
         await app.client.session.refresh()
         return f"Signed in to Lemma ({app.target.name})."
 
-    @server.tool()
+    @tool()
     @_reported
     async def logout() -> str:
         """Sign out of Lemma on this machine."""
