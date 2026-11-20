@@ -97,8 +97,9 @@ Change these with `/plugin configure lemma@axiomatic-ai`.
 | Default model | Lemma's default | The model a new session uses when you don't name one. Lemma's default is the model Lemma would use in the browser. The other values are Anthropic Pro Fast, Anthropic Pro, Anthropic Normal, Google Pro, Google Normal, Open-weight Pro, and Open-weight Normal. |
 | Default machine | Standard | The machine a new session runs on when you don't name one. The values are Standard, Enhanced, High performance, Max, and GPU. Larger machines cost more. The machine cannot change once a session has started. |
 
-Type the model and machine values as shown. Capital letters and punctuation don't matter. A value
-the plugin doesn't recognize is ignored, and the default is used instead.
+Type the model and machine values as shown. Capital letters, spaces, and punctuation don't
+matter. If the plugin doesn't recognize a value, Lemma uses its own default, and Claude tells you
+the next time it starts a session.
 
 To set them while installing from a terminal, add `--config` to the install command:
 
@@ -139,6 +140,26 @@ works in the terminal Claude Code was started from.
 
 **The run ended without an answer.** Ask Claude for the session link and open it in the browser
 to see what happened.
+
+## Upgrading from `axiomaticai`
+
+Earlier versions of this plugin were named `axiomaticai`. If you have that version installed,
+remove it and install `lemma`:
+
+```bash
+claude plugin uninstall axiomaticai@axiomatic-ai
+```
+
+```bash
+claude plugin marketplace update axiomatic-ai
+```
+
+```bash
+claude plugin install lemma@axiomatic-ai
+```
+
+Then restart Claude Code. You stay signed in to Lemma. Your settings are not carried over, so set
+them again with `/plugin configure lemma@axiomatic-ai` if you had changed them.
 
 ## Update or remove
 
