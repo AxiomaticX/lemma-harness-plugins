@@ -21,7 +21,8 @@ def test_the_sign_in_lock_is_one_per_user_whatever_harness_runs(monkeypatch, tmp
     assert data_dir() == tmp_path / "chosen"
 
 
-def test_the_manifest_and_the_package_carry_the_same_version():
-    manifest = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
+def test_the_manifests_and_the_package_carry_the_same_version():
     project = tomllib.loads((PLUGIN / "server" / "pyproject.toml").read_text())
-    assert manifest["version"] == project["project"]["version"]
+    for folder in (".claude-plugin", ".antigravity-plugin"):
+        manifest = json.loads((PLUGIN / folder / "plugin.json").read_text())
+        assert manifest["version"] == project["project"]["version"]

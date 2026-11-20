@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "handoff": {
+      "command": "uv",
+      "args": ["run", "--frozen", "--no-dev", "--quiet", "--project", "${PLUGIN_ROOT}/server", "lemma-mcp"],
+      "env": {
+        "LEMMA_HARNESS": "antigravity"
+      },
+      "timeoutSeconds": -1,
+      "tools": {
+        "wait_for_result": {
+          "background": "always"
+        }
+      }
+    }
+  }
+}

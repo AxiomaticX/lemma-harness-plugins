@@ -124,6 +124,9 @@ Runs take minutes, and long ones take hours. Do not poll in a loop.
   simulation or a whole plan.
 - To block until the run ends, call `wait_for_result`. It returns as soon as the run ends, or
   after `timeout_s` seconds (600 at most) with outcome `running`.
+- In Antigravity you are not woken by a hook. Call `wait_for_result` right after starting a run:
+  it runs in the background and wakes you with the outcome when the run ends, or after
+  `wake_after_minutes` (60 by default) with outcome `running`; call it again to keep waiting.
 - `get_result` reports the outcome at once without waiting.
 
 ## Read the outcome

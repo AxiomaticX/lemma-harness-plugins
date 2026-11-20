@@ -1,12 +1,15 @@
 # Contributing
 
-This repository is the `axiomatic-ai` Claude Code marketplace. It holds one plugin,
-`lemma`, in `plugins/lemma/`. Its skill and MCP server are both named `handoff`, so they
-show in Claude Code as `lemma:handoff`.
+This repository is the `axiomatic-ai` Claude Code marketplace, and holds the same plugin for
+Google Antigravity. It holds one plugin, `lemma`, in `plugins/lemma/`. Its skill and MCP server
+are both named `handoff`, so they show in Claude Code as `lemma:handoff`.
 
 ## What the plugin contains
 
 - `.mcp.json`: a local stdio MCP server, run with `uv` from `server/`.
+- `.antigravity-plugin/plugin.json` and `mcp_config.json`: the Antigravity manifest and its MCP
+  server, which sets `LEMMA_HARNESS=antigravity` and runs `wait_for_result` in the background
+  with no timeout, since Antigravity has no wake-up hook.
 - `README.md` and `LICENSE`: the user guide and license the plugin directory reads from this
   folder.
 - `hooks/hooks.json`: after `send_message` or a `wait_for_result` that found the run still going,
@@ -39,4 +42,12 @@ To try a local checkout, add the repository directory as a marketplace:
 ```
 /plugin marketplace add /path/to/lemma-harness-plugins
 /plugin install lemma@axiomatic-ai
+```
+
+In Antigravity, check the manifest and install a local checkout. Remove `server/.venv` first if
+you ran `uv sync`, as `agy plugin install` rejects symlinks that point outside the plugin folder:
+
+```bash
+agy plugin validate plugins/lemma
+agy plugin install /path/to/lemma-harness-plugins/plugins/lemma
 ```
