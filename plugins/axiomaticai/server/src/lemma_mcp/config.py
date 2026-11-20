@@ -29,6 +29,7 @@ TARGET = Target(
 
 
 def data_dir() -> Path:
-    """The one directory the server and the wake hook share, so they hold the same sign-in lock."""
-    chosen = os.environ.get("LEMMA_DATA_DIR") or os.environ.get("CLAUDE_PLUGIN_DATA")
+    """Where the sign-in lock lives: one per user, like the keychain token it guards, so every
+    process that refreshes that token takes the same lock."""
+    chosen = os.environ.get("LEMMA_DATA_DIR")
     return Path(chosen) if chosen else Path.home() / ".lemma-mcp"

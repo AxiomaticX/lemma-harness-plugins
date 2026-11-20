@@ -65,14 +65,14 @@ Sign-in listens for the browser's redirect on `127.0.0.1`, on the first free por
 - **Sends to Lemma:** over HTTPS to `api.axiomatic-ai.com`, the messages, settings and answers
   Claude passes to Lemma's tools, and the files you name in them. Files go to the storage link
   Lemma returns for each upload, and downloads come from the storage link Lemma returns for each
-  file.
+  file, following any redirect that link gives.
 - **Signs in with:** `auth.axiomatic-ai.com`, through your browser. The refresh token is kept in
   the OS keychain and sent only to `auth.axiomatic-ai.com`.
-- **Opens in your browser:** the sign-in page, and each new conversation on `lemma.axiomatic.ai`
-  unless you turned that off.
+- **Opens in your browser:** the sign-in page, each new conversation on `lemma.axiomatic.ai`
+  unless you turned that off, and any conversation Claude opens with `open_in_browser`.
 - **Writes locally:** files you ask Claude to download, into the folders listed under "Which local
   files Lemma can reach", each written first as a `.part` file beside it; the refresh token, in the
-  OS keychain; a sign-in lock file in the plugin's data directory; and the Python environment,
+  OS keychain; a sign-in lock file in `~/.lemma-mcp`; and the Python environment,
   in `server/.venv` in the installed plugin and in `uv`'s cache.
 
 Nothing else is sent anywhere.
