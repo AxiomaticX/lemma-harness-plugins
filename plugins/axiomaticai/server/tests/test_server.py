@@ -398,6 +398,18 @@ async def test_an_output_past_the_cap_is_saved_whole_to_the_file_asked_for(
     assert str(saved) in result.content[0].text
 
 
+async def test_a_dangling_link_at_the_output_file_is_left_alone(app: App, api, tmp_path: Path):
+    _long_transcript(api, 50)
+    (tmp_path / "page.json").symlink_to(tmp_path / "missing")
+
+    await build_server(app).call_tool(
+        "read_conversation", {"conversation_id": "c1", "output_file": "page.json"}
+    )
+
+    assert json.loads((tmp_path / "page (1).json").read_text())["messages"][0]["text"] == "x" * 50
+    assert (tmp_path / "page.json").is_symlink()
+
+
 async def test_a_file_named_is_written_even_when_the_output_fits(app: App, api, tmp_path: Path):
     _long_transcript(api, 50)
 
