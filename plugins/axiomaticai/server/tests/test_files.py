@@ -101,6 +101,27 @@ async def test_a_download_streams_the_signed_link_without_the_users_token(
     assert conversation.calls.last.request.url.params["messages_limit"] == "1"
 
 
+async def test_a_download_link_that_redirects_to_storage_is_followed(
+    client: LemmaClient, api, tmp_path: Path
+):
+    """A workspace file's link is Lemma's own, which answers with a redirect to storage."""
+    link = "https://api.test/conversations/c1/workspace/file?path=fit.png&signature=s"
+    api.get(CONVERSATION).mock(
+        return_value=_conversation_files({"id": "f9", "name": "fit.png", "download_url": link})
+    )
+    api.get(link).mock(
+        return_value=httpx.Response(302, headers={"location": "https://storage.test/fit.png?sig"})
+    )
+    fetched = api.get("https://storage.test/fit.png?sig").mock(
+        return_value=httpx.Response(200, content=b"png-bytes")
+    )
+
+    saved = await files.download(client, "c1", "fit.png", tmp_path)
+
+    assert saved.read_bytes() == b"png-bytes"
+    assert "Authorization" not in fetched.calls.last.request.headers
+
+
 async def test_a_file_name_cannot_write_outside_the_destination(
     client: LemmaClient, api, tmp_path: Path
 ):

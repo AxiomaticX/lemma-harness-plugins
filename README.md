@@ -1,4 +1,4 @@
-# Axiomatic harness plugins
+# Lemma harness plugins
 
 Plugins that let agent harnesses use Axiomatic products. This repository is also the
 `axiomatic-ai` marketplace for Claude Code and OpenAI Codex.
