@@ -305,3 +305,44 @@ async def test_the_result_carries_the_link_to_the_conversation(app: App, api):
         "questions": [{"id": "int-c1", "message": "Accept Task 1's results?"}],
         "url": "https://lemma.test/en/lemma/c1",
     }
+
+
+async def test_a_found_conversation_carries_its_link(app: App, api):
+    api.get("https://api.test/users/me/conversations/search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "hits": [
+                    {
+                        "id": "c1",
+                        "title": "Ring sweep",
+                        "snippet": None,
+                        "last_message_at": None,
+                        "files": [],
+                        "run_active": False,
+                    }
+                ]
+            },
+        )
+    )
+
+    result = _structured(
+        await build_server(app).call_tool("find_conversations", {"query": "ring sweep"})
+    )
+
+    assert [hit["url"] for hit in result["result"]] == ["https://lemma.test/en/lemma/c1"]
+
+
+@pytest.mark.parametrize(
+    ("asked", "sent"), [({}, "20"), ({"limit": 500}, "100"), ({"limit": 0}, "1")]
+)
+async def test_reading_a_conversation_asks_for_the_latest_messages_within_the_range(
+    app: App, api, asked: dict, sent: str
+):
+    route = api.get("https://api.test/conversations/c1/transcript").mock(
+        return_value=httpx.Response(200, json={"messages": [], "before": None})
+    )
+
+    await build_server(app).call_tool("read_conversation", {"conversation_id": "c1", **asked})
+
+    assert dict(route.calls.last.request.url.params) == {"limit": sent}
