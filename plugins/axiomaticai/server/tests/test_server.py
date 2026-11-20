@@ -369,16 +369,17 @@ def _long_transcript(api, chars: int) -> None:
 
 
 async def test_an_output_past_the_cap_is_cut_with_word_of_how_to_get_the_rest(app: App, api):
-    _long_transcript(api, 500)
+    _long_transcript(api, 1000)
 
-    result = await build_server(replace(app, max_output_chars=100)).call_tool(
+    result = await build_server(replace(app, max_output_chars=400)).call_tool(
         "read_conversation", {"conversation_id": "c1"}
     )
 
     text = result.content[0].text
     assert text.startswith('{\n  "messages"')
-    assert "[Output cut at 100 of " in text
+    assert "[Output cut at 400 of " in text
     assert "output_file" in text
+    assert len(text) <= 400
 
 
 async def test_an_output_past_the_cap_is_saved_whole_to_the_file_asked_for(
@@ -407,29 +408,48 @@ async def test_a_file_named_is_written_even_when_the_output_fits(app: App, api, 
     assert json.loads((tmp_path / "page.json").read_text())["messages"][0]["text"] == "x" * 50
 
 
-async def test_a_cut_change_points_at_the_tool_that_reads_it_rather_than_a_second_call(
-    app: App, api
-):
+async def test_a_tool_that_changes_something_returns_its_result_whole(app: App, api):
     api.get("https://api.test/conversations/c1/plan").mock(
         return_value=httpx.Response(200, json={"revision": 3})
     )
     api.post("https://api.test/conversations/c1/plan/revisions/2/restore").mock(
         return_value=httpx.Response(200, json={"overview": "µm " * 100, "tasks": []})
     )
+    server = build_server(replace(app, max_output_chars=100))
 
-    result = await build_server(replace(app, max_output_chars=100)).call_tool(
-        "restore_plan_revision", {"conversation_id": "c1", "number": 2}
+    result = _structured(
+        await server.call_tool("restore_plan_revision", {"conversation_id": "c1", "number": 2})
     )
 
-    text = result.content[0].text
-    assert "do not call this tool again" in text
-    assert "call get_plan with output_file" in text
-    assert "µm" in text
+    assert result["overview"] == "µm " * 100
+    assert {
+        t.name
+        for t in await server.list_tools()
+        if "output_file" in t.input_schema.get("properties", {})
+    } == {"read_conversation", "find_conversations", "get_plan", "get_result", "wait_for_result"}
+
+
+async def test_a_blank_output_file_is_refused_before_lemma_is_asked(app: App, api):
+    route = api.get("https://api.test/conversations/c1/transcript")
+
+    with pytest.raises(ToolError, match="output_file must be a file path"):
+        await build_server(app).call_tool(
+            "read_conversation", {"conversation_id": "c1", "output_file": " "}
+        )
+
+    assert not route.called
 
 
 @pytest.mark.parametrize(
     ("setting", "cap"),
-    [(None, 40_000), ("", 40_000), ("5000", 5000), ("5000.0", 5000), ("0", 40_000)],
+    [
+        (None, 40_000),
+        ("", 40_000),
+        ("5000", 5000),
+        ("5000.0", 5000),
+        ("0", 40_000),
+        ("inf", 40_000),
+    ],
 )
 def test_the_output_cap_comes_from_the_setting(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, setting: str | None, cap: int

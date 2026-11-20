@@ -57,10 +57,10 @@ def test_a_wait_that_already_saw_the_run_end_arms_nothing():
     ],
     ids=["cut", "saved"],
 )
-def test_a_wait_whose_result_cannot_be_read_arms_nothing(response):
+def test_a_wait_whose_result_cannot_be_read_is_still_followed_by_its_input_ids(response):
     event = _event({"conversation_id": "c1", "run_id": "r1"}, response)
 
-    assert wake.hook_run(event) is None
+    assert wake.hook_run(event) == ("c1", "r1", 3600.0)
 
 
 async def test_a_run_that_ends_wakes_claude_with_its_outcome(monkeypatch):
