@@ -55,11 +55,13 @@ Sign-in listens for the browser's redirect on `127.0.0.1`, on the first free por
 
 ## What the plugin runs, sends and fetches
 
-- **Runs locally:** the `lemma-mcp` server, started by Claude Code when the plugin loads, and the
-  `lemma-wake` hook, started after a Lemma tool call that leaves a run going. Both are the Python
-  in `plugins/axiomaticai/server/`, run with `uv`.
-- **Fetches on first start:** `uv` installs the server's dependencies from PyPI, pinned by
-  `server/uv.lock`.
+- **Runs locally:** the `lemma-mcp` server, which Claude Code starts when the plugin loads and
+  keeps for the session, and the `lemma-wake` hook, started after each Lemma tool call that starts
+  or waits on a run; it exits at once when no run is going. Both are the Python in
+  `plugins/axiomaticai/server/`, run with `uv`.
+- **Fetches on first start of each plugin version:** `uv` installs the server's runtime
+  dependencies from PyPI, pinned by `server/uv.lock`. If no Python 3.12 or newer is installed,
+  `uv` first downloads one from its python-build-standalone releases on GitHub.
 - **Sends to Lemma:** over HTTPS to `api.axiomatic-ai.com`, the messages, settings and answers
   Claude passes to Lemma's tools, and the files you name in them. Files go to the storage link
   Lemma returns for each upload, and downloads come from the storage link Lemma returns for each
@@ -69,9 +71,11 @@ Sign-in listens for the browser's redirect on `127.0.0.1`, on the first free por
 - **Opens in your browser:** the sign-in page, and each new conversation on `lemma.axiomatic.ai`
   unless you turned that off.
 - **Writes locally:** files you ask Claude to download, into the folders listed under "Which local
-  files Lemma can reach", and a lock file in the plugin's data directory.
+  files Lemma can reach", each written first as a `.part` file beside it; the refresh token, in the
+  OS keychain; a sign-in lock file in the plugin's data directory; and the Python environment,
+  in `server/.venv` in the installed plugin and in `uv`'s cache.
 
-Nothing else is sent anywhere, and nothing runs while you aren't using Lemma.
+Nothing else is sent anywhere.
 
 ## What the plugin contains
 
@@ -79,10 +83,9 @@ Nothing else is sent anywhere, and nothing runs while you aren't using Lemma.
 
 - `.mcp.json`: a local stdio MCP server, run with `uv` from `server/`. Its virtualenv is
   `server/.venv` in the installed plugin, shared with the hook and rebuilt for each plugin version.
-- `hooks/hooks.json`: after `send_message` or a `wait_for_result` that found the run still going,
-  a background hook waits on the run and wakes Claude when it ends, or after
-  `wake_after_minutes` (60 by default) to say it is still running. Nothing runs while you aren't
-  using Lemma.
+- `hooks/hooks.json`: after a tool call that starts a run, or a `wait_for_result` that found the
+  run still going, a background hook waits on the run and wakes Claude when it ends, or after
+  `wake_after_minutes` (60 by default) to say it is still running.
 - `skills/lemma/SKILL.md`: how an agent should work with Lemma.
 - `server/`: the `lemma-mcp` server and the `lemma-wake` hook, in one Python package.
 

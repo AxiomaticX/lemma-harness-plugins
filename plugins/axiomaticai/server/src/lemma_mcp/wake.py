@@ -1,18 +1,15 @@
 """The background hook that wakes Claude when a run it started, or waited on, ends."""
 
-import argparse
 import asyncio
 import json
-import os
 import sys
 import time
-from pathlib import Path
 from typing import Any
 
 from .auth import Session
 from .client import LemmaClient
 from .client.runs import RUNNING, wait
-from .config import TARGET
+from .config import TARGET, data_dir
 from .errors import NotFoundError, NotLoggedInError
 
 DEFAULT_MINUTES = 60
@@ -89,23 +86,10 @@ async def follow(client: LemmaClient, conversation_id: str, run_id: str, window:
     return still_running_line(conversation_id, run_id, window)
 
 
-def data_dir(argument: Path | None) -> Path:
-    """Where sign-in is kept: --data-dir, else the plugin data directory Claude Code exports."""
-    if argument is not None:
-        return argument
-    exported = os.environ.get("CLAUDE_PLUGIN_DATA")
-    if not exported:
-        raise SystemExit("lemma-wake needs --data-dir or CLAUDE_PLUGIN_DATA.")
-    return Path(exported)
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="lemma-wake")
-    parser.add_argument("--data-dir", type=Path)
-    args = parser.parse_args()
     found = hook_run(json.load(sys.stdin))
     if found is None:
         return
-    client = LemmaClient(Session(TARGET, data_dir(args.data_dir), interactive=False))
+    client = LemmaClient(Session(TARGET, data_dir(), interactive=False))
     print(asyncio.run(follow(client, *found)), flush=True)
     sys.exit(WAKE_CLAUDE)

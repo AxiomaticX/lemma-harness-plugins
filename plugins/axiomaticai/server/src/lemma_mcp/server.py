@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from .auth import Session
 from .client import LemmaClient, options, plan, runs
 from .client import files as remote_files
-from .config import TARGET, Target
+from .config import TARGET, Target, data_dir
 from .errors import LemmaError
 
 MAX_WAIT_SECONDS = 600
@@ -182,10 +182,9 @@ class App:
 
     @classmethod
     def from_env(cls) -> "App":
-        data_dir = Path(os.environ.get("LEMMA_DATA_DIR") or Path.home() / ".lemma-mcp")
         return cls(
             target=TARGET,
-            client=LemmaClient(Session(TARGET, data_dir)),
+            client=LemmaClient(Session(TARGET, data_dir())),
             project_dir=Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd()),
             open_browser=os.environ.get("LEMMA_OPEN_BROWSER", "").lower() != "false",
             default_model=MODEL_CHOICES.get(os.environ.get("LEMMA_DEFAULT_MODEL", "")),
