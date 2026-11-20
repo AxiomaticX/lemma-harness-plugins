@@ -40,6 +40,19 @@ colleague: the goal, what you already know, and what a good result looks like. C
 
 Both return `conversation_id`, `run_id` and `url`. Keep all three.
 
+## Pick up an earlier conversation
+
+When the user refers to a Lemma conversation without its URL, such as "the Monte Carlo session",
+find it with `find_conversations`, searching with the distinctive words they used.
+
+- One clear match: tell the user which conversation it is, by its title and when it was last
+  active. Several plausible matches: ask the user which one they mean. No match: say so, and try
+  other words they give you. Do not start a new conversation unless they ask.
+- Before you send to it, read it with `read_conversation`. It returns the latest messages; pass
+  `before` to go further back, only as far as the next message needs. Then write that message
+  from what you read and send it with `send_message`.
+- `busy` means a run is going in it now; handle it as for a busy conversation below.
+
 ## Don't answer for Lemma
 
 A question you hand to Lemma is Lemma's to answer. While the run goes, do not answer it yourself
