@@ -147,7 +147,7 @@ FIND_CONVERSATIONS = (
     "messages, best match first. Search with the distinctive words the user used to describe the "
     "conversation. Each hit has the snippet that matched, when a message did; busy means a run is "
     "going in it now. The query is 2 to 200 characters. An empty list means the search found "
-    "nothing; some accounts are searched only across their most recent conversations."
+    "nothing."
 )
 READ_CONVERSATION = (
     "Read what the user wrote and Lemma replied in a conversation, a page of limit messages "
