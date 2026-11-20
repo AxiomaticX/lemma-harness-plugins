@@ -2,7 +2,7 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "axiomaticai",
   "displayName": "Axiomatic AI",
-  "version": "0.1.0",
+  "version": "0.7.0",
   "description": "Hand engineering and science work to Lemma: start a conversation, send files, wait for the run, read the answer, download results, and open it in the browser.",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [

@@ -20,7 +20,7 @@ async def test_calls_name_the_plugin_version_and_harness(signed_in, api, monkeyp
 
     await LemmaClient(signed_in).request("GET", "/ping")
 
-    assert route.calls.last.request.headers["User-Agent"] == "lemma-mcp/0.6.0 (codex)"
+    assert route.calls.last.request.headers["User-Agent"] == "lemma-mcp/0.7.0 (codex)"
 
 
 async def test_a_rejected_token_is_refreshed_once_and_the_call_retried(client: LemmaClient, api):

@@ -1,6 +1,6 @@
 {
   "name": "axiomaticai",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Hand research, engineering, and scientific computing tasks to Lemma—run workflows or multi-step plans in the background, search past conversations, and bring answers and result files back into your workspace.",
   "author": {
     "name": "Axiomatic AI",
