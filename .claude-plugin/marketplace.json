@@ -7,8 +7,8 @@
   "description": "Axiomatic AI plugins for agent harnesses",
   "plugins": [
     {
-      "name": "axiomaticai",
-      "source": "./plugins/axiomaticai",
+      "name": "lemma",
+      "source": "./plugins/lemma",
       "category": "engineering"
     }
   ]

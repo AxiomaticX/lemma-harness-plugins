@@ -2,6 +2,7 @@
 
 import functools
 import os
+import re
 import uuid
 import webbrowser
 from collections.abc import Awaitable, Callable
@@ -157,6 +158,16 @@ MACHINE_CHOICES: dict[str, str] = {
 }
 
 
+def _choice_key(label: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", label.lower()))
+
+
+def _choice[V](choices: dict[str, V], typed: str | None) -> V | None:
+    """The choice whose label matches what the user typed, ignoring case and punctuation."""
+    wanted = _choice_key(typed or "")
+    return next((value for label, value in choices.items() if _choice_key(label) == wanted), None)
+
+
 @dataclass
 class App:
     target: Target
@@ -175,8 +186,8 @@ class App:
             client=LemmaClient(Session(lemma, data_dir)),
             project_dir=Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd()),
             open_browser=os.environ.get("LEMMA_OPEN_BROWSER", "").lower() != "false",
-            default_model=MODEL_CHOICES.get(os.environ.get("LEMMA_DEFAULT_MODEL", "")),
-            default_machine=MACHINE_CHOICES.get(os.environ.get("LEMMA_DEFAULT_MACHINE", "")),
+            default_model=_choice(MODEL_CHOICES, os.environ.get("LEMMA_DEFAULT_MODEL")),
+            default_machine=_choice(MACHINE_CHOICES, os.environ.get("LEMMA_DEFAULT_MACHINE")),
         )
 
     def starting(
@@ -213,7 +224,7 @@ def _reported[**P, R](tool: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[
 
 
 def build_server(app: App) -> MCPServer:
-    server = MCPServer("lemma", instructions=INSTRUCTIONS)
+    server = MCPServer("handoff", instructions=INSTRUCTIONS)
 
     def outcome(conversation_id: str, ended: runs.RunResult) -> dict[str, Any]:
         return {
