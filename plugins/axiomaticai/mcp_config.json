@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "lemma": {
+      "command": "uv",
+      "args": ["run", "--frozen", "--quiet", "--project", "${PLUGIN_ROOT}/server", "lemma-mcp"],
+      "env": {
+        "UV_PROJECT_ENVIRONMENT": "${PLUGIN_DATA}/venv",
+        "LEMMA_DATA_DIR": "${PLUGIN_DATA}",
+        "LEMMA_HARNESS": "antigravity"
+      },
+      "timeoutSeconds": -1,
+      "tools": {
+        "wait_for_result": {
+          "background": "always"
+        }
+      }
+    }
+  }
+}

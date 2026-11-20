@@ -21,28 +21,40 @@ from .errors import LemmaError
 
 MAX_WAIT_SECONDS = 600
 WAKE_AFTER_MINUTES = 60
+MAX_WAKE_MINUTES = 23 * 60
 
 INSTRUCTIONS = (
     "Lemma is Axiomatic's research and engineering agent. Start a conversation with "
     "create_conversation, and continue it with send_message. Runs take minutes to hours; you "
     "are woken when a run ends, so carry on meanwhile."
 )
+BACKGROUND_INSTRUCTIONS = (
+    "Lemma is Axiomatic's research and engineering agent. Start a conversation with "
+    "create_conversation, and continue it with send_message. Runs take minutes to hours; after "
+    "starting a run, call wait_for_result so it waits in the background and wakes you when the "
+    "run ends."
+)
 WAKE = (
     "You are woken when the run ends, or after wake_after_minutes (default 60) with word that it "
     "is still running; set it higher only when you know the run will take hours."
+)
+BACKGROUND_WAKE = (
+    "Call wait_for_result next with conversation_id and run_id; it runs in the background and "
+    "wakes you when the run ends, or after wake_after_minutes (default 60) with outcome running."
 )
 CREATE_CONVERSATION = (
     "Start a new Lemma conversation with its first message. mode is act (work straight away) or "
     "plan (draft a plan for the user to approve first). model is the tier and provider who runs "
     "it; list_options shows the tiers the user has and the ones each provider runs. machine is "
     "the computer it runs on, fixed for the whole conversation. Whatever is left out comes from "
-    "the user's defaults. files are local file paths, uploaded "
-    "into the conversation first. Returns at once with the run id. " + WAKE
+    "the user's defaults. files are local file paths (prefer absolute paths), uploaded "
+    "into the conversation first. Returns at once with the run id. "
 )
 SEND_MESSAGE = (
     "Send the next message in a Lemma conversation. mode, model and provider change the "
     "conversation's own for this and later turns; leave them out to keep them. files are local "
-    "file paths, uploaded into the conversation first. Returns at once with the run id. " + WAKE
+    "file paths (prefer absolute paths), uploaded into the conversation first. Returns at once "
+    "with the run id. "
 )
 WAIT_FOR_RESULT = (
     "Wait up to timeout_s seconds (at most 600) for a run to finish, then report it. outcome is "
@@ -51,10 +63,18 @@ WAIT_FOR_RESULT = (
     "ended without a reply: give the user url). If it is still running, you are woken when it "
     "ends or after wake_after_minutes, as for send_message; pass timeout_s=0 to only arm that."
 )
+BACKGROUND_WAIT_FOR_RESULT = (
+    "Wait in the background for a run to finish (up to wake_after_minutes, default 60, or "
+    "timeout_s seconds if set), then wake you with its outcome. outcome is running (still going: "
+    "call wait_for_result again, with wake_after_minutes higher if it will take hours), answered "
+    "(answer holds the reply), waiting_for_input (questions holds what Lemma needs decided: ask "
+    "the user, then answer_questions), or no_answer (the run ended without a reply: give the "
+    "user url)."
+)
 ANSWER_QUESTIONS = (
     "Answer what a run stopped on: one entry per question, each with the question's id, approved "
     "true or false, and a reason. Only answer as the user decided. The conversation goes on in a "
-    "new run, whose id comes back. " + WAKE
+    "new run, whose id comes back. "
 )
 GET_PLAN = (
     "Read a plan-mode conversation's plan: its revision, its tasks with their dependencies and "
@@ -96,14 +116,14 @@ REVIEW_TASK = (
 )
 RUN_PLAN = (
     "Run an approved plan: scope next for its next task, or all for every task until one needs "
-    "the user. Returns at once with the run id. " + WAKE
+    "the user. Returns at once with the run id. "
 )
 START_WORKFLOW = (
     "Start a new Lemma conversation with one of its ready-made workflows (see list_workflows), "
     "giving its inputs as a map of input name to answer; a choice takes one of its options and "
-    "a multi_choice a list of them. Its file inputs are the files given here, as local paths. "
-    "model, provider and machine are as for create_conversation. Returns at once with the run "
-    "id. " + WAKE
+    "a multi_choice a list of them. Its file inputs are the files given here, as local paths "
+    "(prefer absolute paths). model, provider and machine are as for create_conversation. "
+    "Returns at once with the run id. "
 )
 
 
@@ -128,8 +148,8 @@ Provider = Literal["anthropic", "google", "open"]
 Model = Literal["normal", "pro", "pro_fast"]
 Machine = Literal["standard", "enhanced", "high_performance", "max", "gpu"]
 DOWNLOAD_FILE = (
-    "Save one of the conversation's files, by name or id, into a local directory. An existing "
-    "file is never overwritten; the saved path is returned."
+    "Save one of the conversation's files, by name or id, into a local directory (prefer an "
+    "absolute path). An existing file is never overwritten; the saved path is returned."
 )
 
 
@@ -164,11 +184,17 @@ class App:
     open_browser: bool
     default_model: tuple[str, str] | None = None
     default_machine: str | None = None
+    background_wait: bool = False
 
     @classmethod
     def from_env(cls) -> "App":
-        data_dir = Path(os.environ.get("LEMMA_DATA_DIR") or Path.home() / ".lemma-mcp")
+        data_dir = Path(
+            os.environ.get("LEMMA_DATA_DIR")
+            or os.environ.get("PLUGIN_DATA")
+            or Path.home() / ".lemma-mcp"
+        )
         lemma = target(os.environ.get("LEMMA_ENVIRONMENT"))
+        harness = os.environ.get("LEMMA_HARNESS", "").strip().lower()
         return cls(
             target=lemma,
             client=LemmaClient(Session(lemma, data_dir)),
@@ -176,6 +202,7 @@ class App:
             open_browser=os.environ.get("LEMMA_OPEN_BROWSER", "").lower() != "false",
             default_model=MODEL_CHOICES.get(os.environ.get("LEMMA_DEFAULT_MODEL", "")),
             default_machine=MACHINE_CHOICES.get(os.environ.get("LEMMA_DEFAULT_MACHINE", "")),
+            background_wait=harness == "antigravity",
         )
 
     def starting(
@@ -212,7 +239,10 @@ def _reported[**P, R](tool: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[
 
 
 def build_server(app: App) -> MCPServer:
-    server = MCPServer("lemma", instructions=INSTRUCTIONS)
+    instructions = BACKGROUND_INSTRUCTIONS if app.background_wait else INSTRUCTIONS
+    wake = BACKGROUND_WAKE if app.background_wait else WAKE
+    wait_description = BACKGROUND_WAIT_FOR_RESULT if app.background_wait else WAIT_FOR_RESULT
+    server = MCPServer("lemma", instructions=instructions)
 
     def outcome(conversation_id: str, ended: runs.RunResult) -> dict[str, Any]:
         return {
@@ -237,7 +267,7 @@ def build_server(app: App) -> MCPServer:
         chosen = {key: value for key, value in settings.items() if value is not None}
         return await runs.send(app.client, conversation_id, content, file_ids, chosen)
 
-    @server.tool(description=CREATE_CONVERSATION)
+    @server.tool(description=CREATE_CONVERSATION + wake)
     @_reported
     async def create_conversation(
         content: str,
@@ -259,7 +289,7 @@ def build_server(app: App) -> MCPServer:
             webbrowser.open(app.target.conversation_url(conversation_id))
         return started(conversation_id, run_id)
 
-    @server.tool(description=SEND_MESSAGE)
+    @server.tool(description=SEND_MESSAGE + wake)
     @_reported
     async def send_message(
         conversation_id: str,
@@ -273,7 +303,7 @@ def build_server(app: App) -> MCPServer:
         settings = {"mode": mode, "model": model, "provider": provider}
         return started(conversation_id, await send(conversation_id, content, files, settings))
 
-    @server.tool(description=ANSWER_QUESTIONS)
+    @server.tool(description=ANSWER_QUESTIONS + wake)
     @_reported
     async def answer_questions(
         conversation_id: str,
@@ -372,7 +402,7 @@ def build_server(app: App) -> MCPServer:
         """Lemma's ready-made workflows, each with the inputs it asks for."""
         return await options.workflows(app.client)
 
-    @server.tool(description=START_WORKFLOW)
+    @server.tool(description=START_WORKFLOW + wake)
     @_reported
     async def start_workflow(
         name: str,
@@ -393,7 +423,7 @@ def build_server(app: App) -> MCPServer:
             webbrowser.open(app.target.conversation_url(conversation_id))
         return started(conversation_id, run_id)
 
-    @server.tool(description=RUN_PLAN)
+    @server.tool(description=RUN_PLAN + wake)
     @_reported
     async def run_plan(
         conversation_id: str,
@@ -402,15 +432,24 @@ def build_server(app: App) -> MCPServer:
     ) -> dict[str, Any]:
         return started(conversation_id, await plan.run(app.client, conversation_id, scope))
 
-    @server.tool(description=WAIT_FOR_RESULT)
+    @server.tool(description=wait_description)
     @_reported
     async def wait_for_result(
         conversation_id: str,
         run_id: str,
-        timeout_s: int = MAX_WAIT_SECONDS,
+        timeout_s: int | None = None,
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
     ) -> dict[str, Any]:
-        timeout = max(0, min(timeout_s, MAX_WAIT_SECONDS))
+        if app.background_wait:
+            if timeout_s is not None:
+                window = float(max(0, min(timeout_s, MAX_WAKE_MINUTES * 60)))
+            else:
+                minutes = max(1, min(wake_after_minutes, MAX_WAKE_MINUTES))
+                window = float(minutes * 60)
+            ended = await runs.wait_window(app.client, conversation_id, run_id, window)
+            return outcome(conversation_id, ended)
+        requested = MAX_WAIT_SECONDS if timeout_s is None else timeout_s
+        timeout = max(0, min(requested, MAX_WAIT_SECONDS))
         return outcome(
             conversation_id, await runs.wait(app.client, conversation_id, run_id, timeout)
         )

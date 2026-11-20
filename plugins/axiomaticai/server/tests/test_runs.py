@@ -110,3 +110,34 @@ async def test_the_stream_refreshes_a_rejected_token(client: LemmaClient, api):
 
     assert (await runs.wait(client, "c1", "r1", timeout=60)).answer == "ok"
     assert stream.calls.last.request.headers["Authorization"] == "Bearer at-2"
+
+
+async def test_wait_window_follows_chunks_and_retries_transient_errors(client: LemmaClient):
+    outcomes = iter(
+        [KeyError("blip"), runs.RunResult("running", None), runs.RunResult("answered", "7")]
+    )
+
+    async def fake_wait(_client, _conversation_id, _run_id, _timeout):
+        item = next(outcomes)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    ended = await runs.wait_window(
+        client, "c1", "r1", 30.0, chunk_seconds=10.0, retry_seconds=0.0, wait_fn=fake_wait
+    )
+
+    assert ended == runs.RunResult("answered", "7")
+
+
+async def test_wait_window_with_zero_window_checks_once(client: LemmaClient):
+    calls: list[float] = []
+
+    async def fake_wait(_client, _conversation_id, _run_id, timeout):
+        calls.append(timeout)
+        return runs.RunResult("running", None)
+
+    ended = await runs.wait_window(client, "c1", "r1", 0.0, wait_fn=fake_wait)
+
+    assert ended.outcome == "running"
+    assert calls == [0.0]

@@ -35,8 +35,8 @@ colleague: the goal, what you already know, and what a good result looks like. C
   keeps its own. `list_options` shows the tiers the user can choose, the tiers each provider
   runs, and what each machine costs. The machine is fixed once a conversation starts. Choose
   any of these only when the user asks.
-- Pass local files in `files`, as paths. Relative paths resolve against the project directory.
-  They are uploaded first and land in the conversation's workspace.
+- Pass local files in `files`, as paths (prefer absolute paths; relative paths resolve against
+  the project directory). They are uploaded first and land in the conversation's workspace.
 
 Both return `conversation_id`, `run_id` and `url`. Keep all three.
 
@@ -79,15 +79,17 @@ The user can change the plan at any point, and each change is theirs to decide:
 
 ## Wait for the run
 
-Runs take minutes, and long ones take hours. Do not poll in a loop.
+Runs take minutes, and long ones take hours. Do not poll `get_result` in a loop.
 
-- After any call that starts a run, you are woken when the run ends, so carry on with other
-  work. If it is still going after `wake_after_minutes` (60 by default), you are woken with word of that
-  instead. Call `wait_for_result` then to keep waiting, which arms the next wake-up.
+- In Claude Code, any call that starts a run arms a background wake-up automatically, so carry on
+  with other work. If the run is still going after `wake_after_minutes` (60 by default), you are
+  woken with word of that instead; call `wait_for_result` then to keep waiting, which arms the
+  next wake-up. To block until the run ends, call `wait_for_result` (up to `timeout_s`, 600s max).
+- In Antigravity, call `wait_for_result` right after starting a run: it runs in the background
+  and wakes you with the outcome when the run ends, or after `wake_after_minutes` (60 by default)
+  with outcome `running` (call `wait_for_result` again to keep waiting).
 - Set `wake_after_minutes` higher only when you know the run will take hours, such as a long
   simulation or a whole plan.
-- To block until the run ends, call `wait_for_result`. It returns as soon as the run ends, or
-  after `timeout_s` seconds (600 at most) with outcome `running`.
 - `get_result` reports the outcome at once without waiting.
 
 ## Read the outcome
@@ -95,7 +97,7 @@ Runs take minutes, and long ones take hours. Do not poll in a loop.
 | outcome | meaning | what to do |
 | --- | --- | --- |
 | `answered` | The run ended with a reply. | Use `answer`. |
-| `running` | Still working. | Carry on; you are woken when it ends. |
+| `running` | Still working. | Wait for the wake-up (or call `wait_for_result` again if the wake window elapsed). |
 | `waiting_for_input` | Lemma needs a decision only the user can make; `questions` holds it. | Ask the user, then `answer_questions` with their decision. In plan mode, check `get_plan` for reviews too. |
 | `no_answer` | The run ended without a reply. | Give the user `url` to see what happened. |
 
@@ -107,8 +109,8 @@ wait for the current run first, or start a new conversation.
 - `list_files` shows the conversation's files, including those Lemma produced. `ready` is false
   while one is still being written. `notebook` marks a notebook, such as a plan's results:
   it is best read in the browser, so offer `open_in_browser`.
-- `download_file` saves one by name or id into a local directory and returns the saved path. It
-  never overwrites: a name already taken gets a numbered suffix.
+- `download_file` saves one by name or id into a local directory (prefer an absolute path) and
+  returns the saved path. It never overwrites: a name already taken gets a numbered suffix.
 
 ## Hand over to the user
 

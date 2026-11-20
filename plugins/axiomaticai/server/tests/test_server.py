@@ -305,3 +305,76 @@ async def test_the_result_carries_the_link_to_the_conversation(app: App, api):
         "questions": [{"id": "int-c1", "message": "Accept Task 1's results?"}],
         "url": "https://lemma.test/en/lemma/c1",
     }
+
+
+def test_from_env_uses_plugin_data_and_antigravity_harness(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    monkeypatch.delenv("LEMMA_DATA_DIR", raising=False)
+    monkeypatch.setenv("PLUGIN_DATA", str(tmp_path))
+    monkeypatch.setenv("LEMMA_HARNESS", "antigravity")
+
+    loaded = App.from_env()
+
+    assert loaded.background_wait is True
+    assert Path(loaded.client.session.store.lock.lock_file).parent == tmp_path
+
+
+async def test_antigravity_mode_guides_background_wait_and_follows_wake_window(
+    app: App, monkeypatch: pytest.MonkeyPatch
+):
+    recorded: list[tuple[str, str, float]] = []
+
+    async def fake_wait_window(_client, conversation_id: str, run_id: str, window: float):
+        recorded.append((conversation_id, run_id, window))
+        from lemma_mcp.client.runs import RunResult
+
+        return RunResult("answered", "done")
+
+    monkeypatch.setattr("lemma_mcp.server.runs.wait_window", fake_wait_window)
+    server = build_server(replace(app, background_wait=True))
+
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    assert "wait_for_result" in (server.instructions or "")
+    assert "Call wait_for_result next" in (tools["create_conversation"].description or "")
+    assert "Wait in the background" in (tools["wait_for_result"].description or "")
+
+    result = _structured(
+        await server.call_tool(
+            "wait_for_result",
+            {"conversation_id": "c1", "run_id": "r1", "wake_after_minutes": 120},
+        )
+    )
+    await server.call_tool(
+        "wait_for_result",
+        {"conversation_id": "c1", "run_id": "r1", "timeout_s": 45},
+    )
+
+    assert result["outcome"] == "answered"
+    assert result["answer"] == "done"
+    assert recorded == [("c1", "r1", 7200.0), ("c1", "r1", 45.0)]
+
+
+async def test_claude_mode_wait_for_result_uses_foreground_timeout(
+    app: App, monkeypatch: pytest.MonkeyPatch
+):
+    seen: list[float] = []
+
+    async def fake_wait(_client, _conversation_id: str, _run_id: str, timeout: float):
+        seen.append(timeout)
+        from lemma_mcp.client.runs import RunResult
+
+        return RunResult("running", None)
+
+    monkeypatch.setattr("lemma_mcp.server.runs.wait", fake_wait)
+    server = build_server(app)
+
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    assert "You are woken when the run ends" in (tools["create_conversation"].description or "")
+
+    await server.call_tool("wait_for_result", {"conversation_id": "c1", "run_id": "r1"})
+    await server.call_tool(
+        "wait_for_result", {"conversation_id": "c1", "run_id": "r1", "timeout_s": 0}
+    )
+
+    assert seen == [600, 0]

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "axiomaticai",
+  "displayName": "Axiomatic AI",
+  "version": "0.1.0",
+  "description": "Hand engineering and science work to Lemma: start a conversation, send files, wait for the run, read the answer, download results, and open it in the browser.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Ask Lemma to survey recent papers on a research topic and summarize the key findings",
+    "Draft a Lemma plan to analyze data in this workspace and verify the results",
+    "List Lemma's ready-made workflows and run one on a file from this project"
+  ],
+  "author": {
+    "name": "Axiomatic AI",
+    "url": "https://axiomatic-ai.com"
+  },
+  "homepage": "https://lemma.axiomatic.ai",
+  "repository": "https://github.com/AxiomaticX/axiomatic-harness-plugins",
+  "keywords": ["axiomatic", "lemma"]
+}
