@@ -48,6 +48,23 @@ disagree. Tell them the question is with Lemma, give them `url`, and carry on on
 does not answer it. When the run ends, report Lemma's answer. If you have something to add, put it
 after Lemma's answer and say it is yours.
 
+## Find earlier conversations
+
+The user's past Lemma work can be searched. When they refer to it ("the grating coupler run last
+month", "what did Lemma say about the PML"), find it rather than starting over:
+
+1. `search_conversations` with a few distinctive words. It is keyword search over titles, file
+   names and the words of the messages, not tool output or file contents, so try the words the
+   conversation would have used. `list_conversations` shows the latest ones when the user means
+   something recent rather than a topic.
+2. `read_conversation` on the hit that fits, to read what was asked and what Lemma answered. Its
+   `earlier` reads further back.
+3. Answer from what you read, and say which conversation it came from with its `url`. To pick
+   the work up again, `send_message` to that conversation.
+
+Search covers the user's own conversations; ones colleagues shared show up only in
+`list_conversations`.
+
 ## Ready-made workflows
 
 Lemma has ready-made workflows for common jobs, such as surveying the literature, making a paper

@@ -14,7 +14,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from .auth import Session
-from .client import LemmaClient, options, plan, runs
+from .client import LemmaClient, conversations, options, plan, runs
 from .client import files as remote_files
 from .config import CONFIG_FILENAME, Target, load_settings, save_settings, target
 from .errors import LemmaError
@@ -161,6 +161,25 @@ DefaultModel = Literal[
     "Open-weight · Normal",
 ]
 DefaultMachine = Literal["Standard", "Enhanced", "High performance", "Max", "GPU"]
+SEARCH_CONVERSATIONS = (
+    "Search the user's own Lemma conversations by title, attached file name and the words of "
+    "their messages (what the user typed and what Lemma wrote; not tool output or file "
+    "contents). Keyword search: every word must appear in one message, else any word does; the "
+    "last word also matches as a prefix. Returns up to 50 hits, title and file-name matches "
+    "first, each with a snippet of the best matching message, matched words in «guillemets» "
+    "(null when only the title or a file name matched). Read a hit with read_conversation."
+)
+LIST_CONVERSATIONS = (
+    "The user's most recent Lemma conversations, newest first, with those colleagues shared "
+    "that the user has posted in (owner names who shared them). Use search_conversations to "
+    "find one by its content."
+)
+READ_CONVERSATION = (
+    "Read what was said in a Lemma conversation: the messages the user typed and Lemma's "
+    "replies, oldest first, from its latest stored messages. Tool calls, tool results and "
+    "thinking are left out. When earlier is not null, pass it as before to read further back. "
+    "Continue the conversation with send_message."
+)
 DOWNLOAD_FILE = (
     "Save one of the conversation's files, by name or id, into a local directory (prefer an "
     "absolute path). An existing file is never overwritten; the saved path is returned."
@@ -570,6 +589,26 @@ def build_server(app: App) -> MCPServer:
             }
             for f in listed
         ]
+
+    @server.tool(description=SEARCH_CONVERSATIONS)
+    @_reported
+    async def search_conversations(query: str) -> list[dict[str, Any]]:
+        if not 2 <= len(query.strip()) <= 200:
+            raise ToolError("query must be 2 to 200 characters.")
+        hits = await conversations.search(app.client, query)
+        return [{**hit, "url": app.target.conversation_url(hit["id"])} for hit in hits]
+
+    @server.tool(description=LIST_CONVERSATIONS)
+    @_reported
+    async def list_conversations(limit: int = 20) -> list[dict[str, Any]]:
+        listed = await conversations.recent(app.client, max(1, min(limit, 200)))
+        return [{**item, "url": app.target.conversation_url(item["id"])} for item in listed]
+
+    @server.tool(description=READ_CONVERSATION)
+    @_reported
+    async def read_conversation(conversation_id: str, before: int | None = None) -> dict[str, Any]:
+        found = await conversations.read(app.client, conversation_id, before)
+        return {**found, "url": app.target.conversation_url(conversation_id)}
 
     @server.tool(description=DOWNLOAD_FILE)
     @_reported
