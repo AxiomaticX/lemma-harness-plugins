@@ -49,6 +49,20 @@ def test_a_wait_that_already_saw_the_run_end_arms_nothing():
     assert wake.hook_run(event) is None
 
 
+@pytest.mark.parametrize(
+    "response",
+    [
+        '{\n  "outcome": "answered",\n  "answer": "a long rep\n\n[Output cut at 40000 of 90000]',
+        "The whole output, 90000 characters, is saved to /tmp/answer.json.",
+    ],
+    ids=["cut", "saved"],
+)
+def test_a_wait_whose_result_cannot_be_read_arms_nothing(response):
+    event = _event({"conversation_id": "c1", "run_id": "r1"}, response)
+
+    assert wake.hook_run(event) is None
+
+
 async def test_a_run_that_ends_wakes_claude_with_its_outcome(monkeypatch):
     outcomes = iter([RunResult("running", None), RunResult("answered", "42")])
 
