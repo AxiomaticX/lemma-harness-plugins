@@ -97,7 +97,7 @@ def main() -> None:
     if found is None:
         return
     try:
-        lemma = target(os.environ.get("CLAUDE_PLUGIN_OPTION_ENVIRONMENT"))
+        lemma = target(os.environ.get("LEMMA_ENVIRONMENT"))
     except ValueError:
         return
     client = LemmaClient(Session(lemma, args.data_dir, interactive=False))

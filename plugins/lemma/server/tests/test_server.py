@@ -69,7 +69,7 @@ def _env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **settings: str) -> No
         monkeypatch.setenv(f"LEMMA_{name.upper()}", value)
 
 
-async def test_an_unknown_environment_starts_but_every_tool_explains_the_setting(
+async def test_an_unknown_environment_starts_but_every_tool_explains_the_variable(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     _env(monkeypatch, tmp_path, environment="prod")
@@ -81,7 +81,9 @@ async def test_an_unknown_environment_starts_but_every_tool_explains_the_setting
         ("login", {}),
         ("open_in_browser", {"conversation_id": "c1"}),
     ]:
-        with pytest.raises(ToolError, match=r"'prod'.*production, staging, or dev"):
+        with pytest.raises(
+            ToolError, match=r"LEMMA_ENVIRONMENT is 'prod'.*production, staging, or dev.*restart"
+        ):
             await server.call_tool(tool, arguments)
 
 

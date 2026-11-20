@@ -17,12 +17,6 @@ show in Claude Code as `lemma:handoff`.
 
 All file transfer goes through `server/src/lemma_mcp/client/files.py`.
 
-## Environments
-
-The plugin talks to production Lemma. To use staging or dev, set the `environment` option to
-`staging` or `dev` with `/plugin configure lemma@axiomatic-ai`, or install with
-`--config environment=staging`. Sign-in and sessions are separate per environment.
-
 ## Develop
 
 ```bash
