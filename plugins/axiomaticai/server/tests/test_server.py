@@ -7,7 +7,7 @@ import httpx
 import pytest
 from mcp import Client
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp_types import ListRootsResult, Root
+from mcp_types import ElicitResult, ListRootsResult, Root
 
 from lemma_mcp.client import LemmaClient
 from lemma_mcp.server import App, build_server
@@ -343,21 +343,114 @@ async def test_an_upload_from_outside_the_project_never_reaches_lemma(app: App, 
     assert not api.calls
 
 
-async def test_files_in_the_workspace_the_client_shares_are_sent(app: App, api, tmp_path: Path):
-    workspace = tmp_path.parent / f"{tmp_path.name}-workspace"
-    workspace.mkdir()
-    (workspace / "data.csv").write_text("a,b\n")
+def _beside(tmp_path: Path, name: str) -> Path:
+    """A folder next to the project, holding data.csv."""
+    folder = tmp_path.parent / f"{tmp_path.name}-{name}"
+    folder.mkdir()
+    (folder / "data.csv").write_text("a,b\n")
+    return folder
+
+
+def _answering(action: str, allow: bool = True):
+    asked: list[str] = []
+
+    async def elicit(_context, params):
+        asked.append(params.message)
+        content = {"allow": allow} if action == "accept" else None
+        return ElicitResult(action=action, content=content)
+
+    return elicit, asked
+
+
+async def _send(app: App, file: str, mode: str = "auto", **callbacks):
+    async with Client(build_server(app), mode=mode, **callbacks) as client:
+        return await client.call_tool(
+            "send_message", {"conversation_id": "c1", "content": "go", "files": [file]}
+        )
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_files_in_the_workspace_the_client_shares_are_sent(
+    app: App, api, tmp_path: Path, mode: str
+):
+    workspace = _beside(tmp_path, "workspace")
     uploads = api.post("https://api.test/files/").mock(return_value=httpx.Response(500))
+    elicit, asked = _answering("decline")
 
     async def roots(_context):
         return ListRootsResult(roots=[Root(uri=workspace.as_uri())])
 
-    async with Client(build_server(app), mode="legacy", list_roots_callback=roots) as client:
-        result = await client.call_tool(
-            "send_message", {"conversation_id": "c1", "content": "go", "files": ["data.csv"]}
-        )
+    result = await _send(
+        app, "data.csv", mode, list_roots_callback=roots, elicitation_callback=elicit
+    )
 
     assert uploads.called, result
+    assert not asked
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_a_file_outside_the_project_is_sent_only_once_the_user_allows_it(
+    app: App, api, tmp_path: Path, mode: str
+):
+    outside = _beside(tmp_path, "outside") / "data.csv"
+    uploads = api.post("https://api.test/files/").mock(return_value=httpx.Response(500))
+    elicit, asked = _answering("accept")
+
+    result = await _send(app, str(outside), mode, elicitation_callback=elicit)
+
+    assert uploads.called, result
+    assert len(asked) == 1 and str(outside) in asked[0]
+
+
+@pytest.mark.parametrize(
+    ("action", "allow"), [("decline", True), ("cancel", True), ("accept", False)]
+)
+async def test_a_file_the_user_does_not_allow_never_reaches_lemma(
+    app: App, api, tmp_path: Path, action: str, allow: bool
+):
+    outside = _beside(tmp_path, "outside") / "data.csv"
+    elicit, asked = _answering(action, allow)
+
+    result = await _send(app, str(outside), elicitation_callback=elicit)
+
+    assert result.is_error and "did not allow" in result.content[0].text
+    assert asked and not api.calls
+
+
+async def test_a_hidden_file_is_refused_without_asking(app: App, api, tmp_path: Path):
+    elicit, asked = _answering("accept")
+
+    result = await _send(app, str(tmp_path.parent / ".ssh" / "id_rsa"), elicitation_callback=elicit)
+
+    assert result.is_error and "hidden" in result.content[0].text
+    assert not asked and not api.calls
+
+
+async def test_without_a_way_to_ask_the_user_a_file_outside_is_refused(app, api, tmp_path):
+    result = await _send(app, str(_beside(tmp_path, "outside") / "data.csv"))
+
+    assert result.is_error and "LEMMA_ALLOWED_DIRS" in result.content[0].text
+    assert not api.calls
+
+
+async def test_saving_outside_the_project_asks_the_user_first(app: App, api, tmp_path: Path):
+    elicit, asked = _answering("decline")
+
+    async with Client(build_server(app), elicitation_callback=elicit) as client:
+        result = await client.call_tool(
+            "download_file",
+            {"conversation_id": "c1", "name": "fit.png", "dest_dir": str(tmp_path.parent)},
+        )
+
+    assert result.is_error and "did not allow" in result.content[0].text
+    assert asked and not api.calls
+
+
+async def test_the_agent_cannot_supply_the_workspace_or_the_consent(app: App):
+    tools = {tool.name: tool for tool in await build_server(app).list_tools()}
+
+    for name in ["create_conversation", "send_message", "start_workflow", "download_file"]:
+        assert not {"workspace", "consent"} & set(tools[name].input_schema["properties"])
 
 
 def test_from_env_reads_the_allowed_folders(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -374,11 +467,9 @@ def test_from_env_uses_plugin_data_and_antigravity_harness(
     monkeypatch.setenv("PLUGIN_DATA", str(tmp_path))
     monkeypatch.setenv("LEMMA_HARNESS", "antigravity")
 
-    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
     loaded = App.from_env()
 
     assert loaded.background_wait is True
-    assert loaded.project_dir == Path.home()
     assert Path(loaded.client.session.store.lock.lock_file).parent == tmp_path
 
 

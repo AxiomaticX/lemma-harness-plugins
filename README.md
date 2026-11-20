@@ -80,11 +80,12 @@ You can also edit `config.json` directly, or override any setting via `LEMMA_ENV
 
 ### Which local files Lemma can reach
 
-Files are sent from, and saved to, only the project (`CLAUDE_PROJECT_DIR` in Claude Code; the
-home folder in Antigravity, which does not tell plugins its workspace) and any folders listed in
-`LEMMA_ALLOWED_DIRS` (separated by `:`). Hidden files and folders, such as `.env`, `.ssh` or
-`.aws`, are always refused. The agent cannot change this list; set it in the environment that
-starts the harness.
+Files are sent from, and saved to, the open workspace (the folders the harness reports over MCP),
+the project (`CLAUDE_PROJECT_DIR` in Claude Code), and any folders listed in `LEMMA_ALLOWED_DIRS`
+(separated by `:`). For any other path, the harness asks you to allow it first; the agent cannot
+answer for you, and a harness that cannot ask refuses the path. Hidden files and folders, such as
+`.env`, `.ssh` or `.aws`, are always refused. The agent cannot change `LEMMA_ALLOWED_DIRS`; set
+it in the environment that starts the harness.
 
 ## Sign in
 

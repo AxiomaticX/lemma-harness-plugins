@@ -3,7 +3,6 @@
 import functools
 import os
 import uuid
-import warnings
 import webbrowser
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -13,10 +12,12 @@ from urllib.parse import urlparse
 from urllib.request import url2pathname
 
 import httpx
+from mcp.server.elicitation import AcceptedElicitation, ElicitationResult
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp.shared.exceptions import MCPDeprecationWarning
-from pydantic import Field
+from mcp.server.mcpserver.resolve import Elicit, ListRoots, Resolve
+from mcp_types import ListRootsResult
+from pydantic import BaseModel, Field
 
 from .auth import Session
 from .client import LemmaClient, conversations, options, plan, runs
@@ -266,15 +267,10 @@ class App:
         raw_model = os.environ.get("LEMMA_DEFAULT_MODEL") or saved.get("default_model") or ""
         raw_machine = os.environ.get("LEMMA_DEFAULT_MACHINE") or saved.get("default_machine") or ""
         harness = os.environ.get("LEMMA_HARNESS", "").strip().lower()
-        # Antigravity starts plugin servers in the plugin folder and shares no workspace over
-        # its MCP protocol, so there the home folder (hidden files still refused) is the bound.
-        project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or (
-            Path.home() if harness == "antigravity" else Path.cwd()
-        )
         return cls(
             target=lemma,
             client=LemmaClient(Session(lemma, data_dir)),
-            project_dir=Path(project_dir),
+            project_dir=Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd()),
             open_browser=open_browser,
             default_model=MODEL_CHOICES.get(raw_model),
             default_machine=MACHINE_CHOICES.get(raw_machine),
@@ -346,9 +342,10 @@ class App:
             "sandbox_type": machine or self.default_machine,
         }
 
-    def local_path(self, raw: str, workspace: tuple[Path, ...] = ()) -> Path:
-        """A path files may be sent from or saved to: inside the project, the client's workspace
-        or LEMMA_ALLOWED_DIRS, and not hidden, so secrets such as .ssh or .env never reach Lemma."""
+    def locate(self, raw: str, workspace: tuple[Path, ...] = ()) -> tuple[Path, bool]:
+        """The real path, and whether it lies inside the client's workspace, the project or
+        LEMMA_ALLOWED_DIRS. Hidden paths are refused outright, so secrets such as .ssh or .env
+        never reach Lemma."""
         path = Path(raw).expanduser()
         base = workspace[0] if workspace else self.project_dir
         path = (path if path.is_absolute() else base / path).resolve()
@@ -357,26 +354,72 @@ class App:
             if path.is_relative_to(root):
                 if any(part.startswith(".") for part in path.relative_to(root).parts):
                     raise ToolError(f"{raw} is hidden; hidden files and folders are not sent.")
-                return path
+                return path, True
+        if any(part.startswith(".") for part in path.parts):
+            raise ToolError(f"{raw} is hidden; hidden files and folders are not sent.")
+        return path, False
+
+    def local_path(
+        self, raw: str, workspace: tuple[Path, ...] = (), allow_outside: bool = False
+    ) -> Path:
+        """A path files may be sent from or saved to; outside the allowed folders only when the
+        user allowed it."""
+        path, inside = self.locate(raw, workspace)
+        if not inside and not allow_outside:
+            raise ToolError(
+                f"{raw} is outside the project. Ask the user to move it there, "
+                "or to add its folder to LEMMA_ALLOWED_DIRS."
+            )
+        return path
+
+
+class Allow(BaseModel):
+    allow: bool = Field(description="Allow it")
+
+
+def _declares(ctx: Context, capability: Literal["roots", "elicitation"]) -> bool:
+    """Whether the client can answer a roots request, or show the user a form."""
+    try:
+        capabilities = ctx.client_capabilities
+    except (ValueError, RuntimeError):
+        return False
+    if capabilities is None:
+        return False
+    if capability == "roots":
+        return capabilities.roots is not None
+    form = capabilities.elicitation
+    return form is not None and (form.form is not None or form.url is None)
+
+
+def _client_roots(ctx: Context) -> ListRoots | ListRootsResult:
+    return ListRoots() if _declares(ctx, "roots") else ListRootsResult(roots=[])
+
+
+Workspace = Annotated[ListRootsResult, Resolve(_client_roots)]
+
+
+def _folders(workspace: ListRootsResult) -> tuple[Path, ...]:
+    uris = (urlparse(str(root.uri)) for root in workspace.roots)
+    return tuple(Path(url2pathname(uri.path)) for uri in uris if uri.scheme == "file")
+
+
+def _ask_user(ctx: Context, outside: list[str], doing: str) -> Allow | Elicit[Allow]:
+    """Have the user, not the agent, allow paths outside the allowed folders."""
+    if not outside:
+        return Allow(allow=True)
+    listed = ", ".join(outside)
+    if not _declares(ctx, "elicitation"):
         raise ToolError(
-            f"{raw} is outside the project ({base}). Ask the user to move it there, "
+            f"{listed} is outside the project. Ask the user to move it there, "
             "or to add its folder to LEMMA_ALLOWED_DIRS."
         )
+    return Elicit(f"The agent wants to {doing}, outside the project: {listed}. Allow it?", Allow)
 
 
-async def _workspace(ctx: Context | None) -> tuple[Path, ...]:
-    """The folders the client says the user is working in (MCP roots), when it shares them."""
-    try:
-        capabilities = ctx.client_capabilities if ctx else None
-        if capabilities is None or capabilities.roots is None:
-            return ()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", MCPDeprecationWarning)
-            listed = await ctx.session.list_roots()
-    except Exception:
-        return ()
-    uris = (urlparse(str(root.uri)) for root in listed.roots)
-    return tuple(Path(url2pathname(uri.path)) for uri in uris if uri.scheme == "file")
+def _allowed(consent: ElicitationResult[Allow]) -> bool:
+    if isinstance(consent, AcceptedElicitation) and consent.data.allow:
+        return True
+    raise ToolError("The user did not allow this path outside the project; do not retry it.")
 
 
 def _reported[**P, R](tool: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
@@ -412,15 +455,35 @@ def build_server(app: App) -> MCPServer:
         url = app.target.conversation_url(conversation_id)
         return {"conversation_id": conversation_id, "run_id": run_id, "url": url}
 
+    def files_roots(ctx: Context, files: list[str] | None = None) -> ListRoots | ListRootsResult:
+        return _client_roots(ctx) if files else ListRootsResult(roots=[])
+
+    FilesWorkspace = Annotated[ListRootsResult, Resolve(files_roots)]
+
+    def files_consent(
+        ctx: Context, workspace: FilesWorkspace, files: list[str] | None = None
+    ) -> Allow | Elicit[Allow]:
+        folders = _folders(workspace)
+        outside = [f for f in files or [] if not app.locate(f, folders)[1]]
+        return _ask_user(ctx, outside, "send these files to Lemma")
+
+    def dest_consent(ctx: Context, workspace: Workspace, dest_dir: str) -> Allow | Elicit[Allow]:
+        inside = app.locate(dest_dir, _folders(workspace))[1]
+        return _ask_user(ctx, [] if inside else [dest_dir], "save a file from Lemma into a folder")
+
+    FilesConsent = Annotated[ElicitationResult[Allow], Resolve(files_consent)]
+    DestConsent = Annotated[ElicitationResult[Allow], Resolve(dest_consent)]
+
     async def send(
         conversation_id: Id,
         content: str | None,
         files: list[str] | None,
         settings: dict[str, Any],
-        ctx: Context,
+        workspace: ListRootsResult,
+        consent: ElicitationResult[Allow],
     ) -> str:
-        workspace = await _workspace(ctx) if files else ()
-        paths = [app.local_path(p, workspace) for p in files or []]
+        allow, folders = _allowed(consent), _folders(workspace)
+        paths = [app.local_path(p, folders, allow) for p in files or []]
         file_ids = await remote_files.upload(app.client, paths) if paths else []
         chosen = {key: value for key, value in settings.items() if value is not None}
         return await runs.send(app.client, conversation_id, content, file_ids, chosen)
@@ -435,7 +498,8 @@ def build_server(app: App) -> MCPServer:
         machine: Machine | None = None,
         files: list[str] | None = None,
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
-        ctx: Context = None,
+        workspace: FilesWorkspace = None,
+        consent: FilesConsent = None,
     ) -> dict[str, Any]:
         conversation_id = str(uuid.uuid4())
         run_id = await send(
@@ -443,7 +507,8 @@ def build_server(app: App) -> MCPServer:
             content,
             files,
             {"mode": mode, **app.starting(model, provider, machine)},
-            ctx,
+            workspace,
+            consent,
         )
         if app.open_browser:
             webbrowser.open(app.target.conversation_url(conversation_id))
@@ -459,10 +524,11 @@ def build_server(app: App) -> MCPServer:
         provider: Provider | None = None,
         files: list[str] | None = None,
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
-        ctx: Context = None,
+        workspace: FilesWorkspace = None,
+        consent: FilesConsent = None,
     ) -> dict[str, Any]:
         settings = {"mode": mode, "model": model, "provider": provider}
-        run_id = await send(conversation_id, content, files, settings, ctx)
+        run_id = await send(conversation_id, content, files, settings, workspace, consent)
         return started(conversation_id, run_id)
 
     @server.tool(description=ANSWER_QUESTIONS + wake)
@@ -574,14 +640,15 @@ def build_server(app: App) -> MCPServer:
         provider: Provider | None = None,
         machine: Machine | None = None,
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
-        ctx: Context = None,
+        workspace: FilesWorkspace = None,
+        consent: FilesConsent = None,
     ) -> dict[str, Any]:
         conversation_id = str(uuid.uuid4())
         settings = {
             "workflow": {"name": name, "inputs": inputs or {}},
             **app.starting(model, provider, machine),
         }
-        run_id = await send(conversation_id, None, files, settings, ctx)
+        run_id = await send(conversation_id, None, files, settings, workspace, consent)
         if app.open_browser:
             webbrowser.open(app.target.conversation_url(conversation_id))
         return started(conversation_id, run_id)
@@ -663,9 +730,13 @@ def build_server(app: App) -> MCPServer:
     @server.tool(description=DOWNLOAD_FILE)
     @_reported
     async def download_file(
-        conversation_id: Id, name: str, dest_dir: str, ctx: Context = None
+        conversation_id: Id,
+        name: str,
+        dest_dir: str,
+        workspace: Workspace = None,
+        consent: DestConsent = None,
     ) -> dict[str, str]:
-        dest = app.local_path(dest_dir, await _workspace(ctx))
+        dest = app.local_path(dest_dir, _folders(workspace), _allowed(consent))
         saved = await remote_files.download(app.client, conversation_id, name, dest)
         return {"path": str(saved)}
 

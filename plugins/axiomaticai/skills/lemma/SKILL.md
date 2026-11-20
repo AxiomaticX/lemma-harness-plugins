@@ -37,9 +37,9 @@ colleague: the goal, what you already know, and what a good result looks like. C
   any of these only when the user asks.
 - Pass local files in `files`, as paths (prefer absolute paths; relative paths resolve against
   the project directory). They are uploaded first and land in the conversation's workspace.
-  Only files inside the project (in Antigravity, the home folder) or a folder the user listed in
-  `LEMMA_ALLOWED_DIRS` can be sent, and never hidden ones such as `.env` or `.ssh`. If a file is
-  refused, tell the user why; do not copy it somewhere else to get around it.
+  Files outside the workspace, the project and `LEMMA_ALLOWED_DIRS` are sent only once the user
+  allows it in a prompt; hidden ones such as `.env` or `.ssh` never are. If a file is refused,
+  tell the user why; do not retry it or copy it somewhere else to get around it.
 
 Both return `conversation_id`, `run_id` and `url`. Keep all three.
 
