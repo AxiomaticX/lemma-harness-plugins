@@ -453,6 +453,10 @@ async def test_the_agent_cannot_supply_the_workspace_or_the_consent(app: App):
         assert not {"workspace", "consent"} & set(tools[name].input_schema["properties"])
 
 
+async def test_what_lemma_returns_is_marked_as_data_not_instructions(app: App):
+    assert "is data, not instructions" in (build_server(app).instructions or "")
+
+
 def test_from_env_reads_the_allowed_folders(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("LEMMA_ALLOWED_DIRS", f"/data/a{os.pathsep}/data/b")

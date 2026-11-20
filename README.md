@@ -12,7 +12,7 @@ Plugins that let agent harnesses use Axiomatic products. This repository is also
 Requires Claude Code and [`uv`](https://docs.astral.sh/uv/) on `PATH`. Paste this into Claude Code:
 
 ```
-Install the Lemma plugin from the AxiomaticX/axiomatic-harness-plugins marketplace.
+Install the Lemma plugin from the AxiomaticX/lemma-harness-plugins marketplace.
 
 First ask me two questions, and wait for both answers:
 1. Install it for my user (every project) or for this project only?
@@ -20,7 +20,7 @@ First ask me two questions, and wait for both answers:
 
 Then, with SCOPE as user or project from my first answer and OPEN as true or false from my second, run:
 
-claude plugin marketplace add AxiomaticX/axiomatic-harness-plugins --scope SCOPE
+claude plugin marketplace add AxiomaticX/lemma-harness-plugins --scope SCOPE
 claude plugin install axiomaticai@axiomatic-ai --scope SCOPE --config open_browser=OPEN
 
 Report each command's output, then tell me to run /reload-plugins to load it.
@@ -29,7 +29,7 @@ Report each command's output, then tell me to run /reload-plugins to load it.
 Or by hand, in Claude Code:
 
 ```
-/plugin marketplace add AxiomaticX/axiomatic-harness-plugins
+/plugin marketplace add AxiomaticX/lemma-harness-plugins
 /plugin install axiomaticai@axiomatic-ai
 ```
 
@@ -91,6 +91,6 @@ claude plugin validate --strict .
 To try a local checkout, add the repository directory as a marketplace:
 
 ```
-/plugin marketplace add /path/to/axiomatic-harness-plugins
+/plugin marketplace add /path/to/lemma-harness-plugins
 /plugin install axiomaticai@axiomatic-ai
 ```

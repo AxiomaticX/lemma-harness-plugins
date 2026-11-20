@@ -1,7 +1,9 @@
 """The Lemma API, as the signed-in user."""
 
+import os
 import re
 from contextlib import asynccontextmanager
+from importlib.metadata import version
 from typing import Any
 
 import httpx
@@ -19,7 +21,9 @@ class LemmaClient:
     def __init__(self, session: Session, http: httpx.AsyncClient | None = None) -> None:
         self.session = session
         self.target = session.target
-        self._http = http or httpx.AsyncClient(base_url=self.target.api_url, timeout=TIMEOUT)
+        self._http = http or httpx.AsyncClient(
+            base_url=self.target.api_url, timeout=TIMEOUT, headers={"User-Agent": user_agent()}
+        )
 
     async def request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         check_path(path)
@@ -45,6 +49,12 @@ class LemmaClient:
 
     async def _send(self, method: str, path: str, token: str, **kwargs: Any) -> httpx.Response:
         return await self._http.request(method, path, headers=_bearer(token), **kwargs)
+
+
+def user_agent() -> str:
+    """Names the plugin version and the harness running it, so Lemma can tell them apart."""
+    harness = os.environ.get("LEMMA_HARNESS", "").strip().lower() or "claude-code"
+    return f"lemma-mcp/{version('lemma-mcp')} ({harness})"
 
 
 def check_path(path: str) -> None:
