@@ -106,7 +106,7 @@ async def download(client: LemmaClient, conversation_id: str, name: str, dest_di
     partial = target.with_name(target.name + ".part")
     try:
         async with (
-            httpx.AsyncClient(timeout=TRANSFER_TIMEOUT) as storage,
+            httpx.AsyncClient(timeout=TRANSFER_TIMEOUT, follow_redirects=True) as storage,
             storage.stream("GET", remote.download_url) as response,
         ):
             response.raise_for_status()
