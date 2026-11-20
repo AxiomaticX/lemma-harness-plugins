@@ -12,7 +12,7 @@
     "environment": {
       "type": "string",
       "title": "Lemma environment",
-      "description": "Which Lemma to use: production, staging, or dev. Sign-in and conversations are separate per environment.",
+      "description": "Which Lemma to use: production, staging, or dev. Sign-in and sessions are separate per environment.",
       "default": "production"
     },
     "open_browser": {
@@ -24,13 +24,13 @@
     "default_model": {
       "type": "string",
       "title": "Default model",
-      "description": "The model a new conversation starts on when Claude names none. Type one of: Lemma's default, Anthropic Pro Fast, Anthropic Pro, Anthropic Normal, Google Pro, Google Normal, Open-weight Pro, or Open-weight Normal. Lemma's default is the model Lemma would use in the browser.",
+      "description": "The model a new session starts on when Claude names none. Type one of: Lemma's default, Anthropic Pro Fast, Anthropic Pro, Anthropic Normal, Google Pro, Google Normal, Open-weight Pro, or Open-weight Normal. Lemma's default is the model Lemma would use in the browser.",
       "default": "Lemma's default"
     },
     "default_machine": {
       "type": "string",
       "title": "Default machine",
-      "description": "The machine a new conversation runs on when Claude names none. Type one of: Standard, Enhanced, High performance, Max, or GPU.",
+      "description": "The machine a new session runs on when Claude names none. Type one of: Standard, Enhanced, High performance, Max, or GPU.",
       "default": "Standard"
     }
   }
