@@ -46,12 +46,14 @@ When the user refers to a Lemma conversation without its URL, such as "the Monte
 find it with `find_conversations`, searching with the distinctive words they used.
 
 - One clear match: tell the user which conversation it is, by its title and when it was last
-  active. Several plausible matches: ask the user which one they mean. No match: say so, and try
-  other words they give you. Do not start a new conversation unless they ask.
+  active. Several plausible matches: ask the user which one they mean. No match: say the search
+  found nothing, not that the conversation does not exist, and try other words they give you. Do
+  not start a new conversation unless they ask.
 - Before you send to it, read it with `read_conversation`. It returns the latest messages; pass
   `before` to go further back, only as far as the next message needs. Then write that message
   from what you read and send it with `send_message`.
-- `busy` means a run is going in it now; handle it as for a busy conversation below.
+- `busy` means a run is going in it now, and you have no run id to wait on. Tell the user, give
+  them `url`, and send to it only once they say the run has finished.
 
 ## Don't answer for Lemma
 
