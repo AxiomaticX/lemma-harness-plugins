@@ -1,88 +1,163 @@
-# Lemma harness plugins
+# Lemma for Claude Code
 
-Plugins that let agent harnesses use Axiomatic products. This repository is also the
-`axiomatic-ai` Claude Code marketplace.
+[Lemma](https://lemma.axiomatic.ai) is [Axiomatic AI](https://axiomatic.ai)'s agent for research, engineering, and
+scientific computing. It works on its own machine, with its own tools, and keeps a record of
+every step in a session you can open in the browser.
 
-| Plugin | What it does |
-| --- | --- |
-| `axiomaticai` | Hand a task to Lemma from Claude Code: start a conversation, send local files, wait for the run, read the answer, download results, and open the conversation in the browser. |
+This plugin lets Claude Code hand work to Lemma. From Claude Code you can start a Lemma session,
+send it local files, wait for the run to finish, read Lemma's answer, and download the files it
+produced. Any session can be opened in the browser to read the full record or to continue the
+work there.
+
+## Before you install
+
+- **A Lemma account.** Sign up at [lemma.axiomatic.ai](https://lemma.axiomatic.ai).
+- **Usage is charged to that account.** Every message Claude sends to Lemma starts a run, and
+  each run costs the same as a message typed in the browser. Claude tells you what it asked
+  Lemma to do and gives you a link to the session.
+- **Claude Code**, and [`uv`](https://docs.astral.sh/uv/getting-started/installation/) on your
+  `PATH`. The plugin runs a small local server with `uv`.
 
 ## Install
 
-Requires Claude Code and [`uv`](https://docs.astral.sh/uv/) on `PATH`. Paste this into Claude Code:
+In Claude Code, run:
 
 ```
-Install the Lemma plugin from the AxiomaticX/axiomatic-harness-plugins marketplace.
-
-First ask me two questions, and wait for both answers:
-1. Install it for my user (every project) or for this project only?
-2. Should each new Lemma conversation open in my browser when a message is sent? It is on unless I say no.
-
-Then, with SCOPE as user or project from my first answer and OPEN as true or false from my second, run:
-
-claude plugin marketplace add AxiomaticX/axiomatic-harness-plugins --scope SCOPE
-claude plugin install axiomaticai@axiomatic-ai --scope SCOPE --config open_browser=OPEN
-
-Report each command's output, then tell me to run /reload-plugins to load it.
+/plugin marketplace add AxiomaticX/lemma-harness-plugins
+/plugin install lemma@axiomatic-ai
+/reload-plugins
 ```
 
-Or by hand, in Claude Code:
+The install asks whether each new Lemma session should open in your browser when Claude sends
+it a message. The default is yes.
 
+To install from a terminal instead, for every project (`user`) or for one project (`project`):
+
+```bash
+claude plugin marketplace add AxiomaticX/lemma-harness-plugins --scope user
 ```
-/plugin marketplace add AxiomaticX/axiomatic-harness-plugins
-/plugin install axiomaticai@axiomatic-ai
+
+```bash
+claude plugin install lemma@axiomatic-ai --scope user
 ```
-
-The install asks whether to open each new conversation in the browser (on by default). Change
-it later with `/plugin configure axiomaticai@axiomatic-ai`.
-
-The plugin talks to production Lemma. To use staging or dev, set its `environment` option to
-`staging` or `dev` with `/plugin configure axiomaticai@axiomatic-ai`, or install with
-`--config environment=staging`.
 
 ## Sign in
 
-The first Lemma tool call opens the browser to sign in to Lemma with your usual account. The
-sign-in is kept in the OS keychain and refreshed automatically, so it survives restarts. Call
-the `logout` tool to remove it.
+The first time Claude uses Lemma, your browser opens to the Lemma sign-in page. Sign in with
+your usual Lemma account. The plugin keeps the sign-in in your operating system's keychain, so
+you stay signed in across restarts. To sign out, ask Claude to sign out of Lemma.
 
-Sign-in listens for the browser's redirect on `127.0.0.1`, on the first free port of 47815,
-47816 and 47817.
+## First use
 
-## What the plugin contains
+Ask Claude in your own words. For example:
 
-`plugins/axiomaticai/`:
+- "Ask Lemma to survey recent literature on perovskite solar cell stability."
+- "Send `data/sweep.csv` to Lemma and have it fit the resonance peaks. Download the plots when
+  it is done."
+- "Have Lemma check the references in `paper.pdf`."
+- "Ask Lemma to plan a simulation of this waveguide, but don't run anything until I approve the
+  plan."
 
-- `.mcp.json`: a local stdio MCP server, run with `uv` from `server/`. Its virtualenv lives in
-  the plugin's data directory, so plugin updates don't rebuild it in place.
-- `hooks/hooks.json`: after `send_message` or a `wait_for_result` that found the run still going,
-  a background hook waits on the run and wakes Claude when it ends, or after
-  `wake_after_minutes` (60 by default) to say it is still running. Nothing runs while you aren't
-  using Lemma.
-- `skills/lemma/SKILL.md`: how an agent should work with Lemma.
-- `server/`: the `lemma-mcp` server and the `lemma-wake` hook, in one Python package.
+Claude writes the brief for Lemma, sends it, and gives you the session link. Runs take
+minutes, and long ones take hours. You can keep working with Claude in the meantime: Claude is
+told when the run ends and reports what Lemma answered.
 
-All file transfer goes through `server/src/lemma_mcp/client/files.py`.
+## What you can do
 
-## Develop
+**Hand over a task.** Claude starts a session with the goal, what is already known, and any
+files you name. Local files are uploaded into the session's workspace in Lemma. Ask Claude to
+continue the same session with follow-up questions.
 
+**Use a ready-made workflow.** Lemma has workflows for common jobs, such as surveying the
+literature, making a paper interactive, verifying a paper's references, and simulating a device.
+Ask Claude which workflows are available, or describe the job and Claude picks the matching
+one. Claude asks you for any required input it does not have.
+
+**Plan before running.** In plan mode, Lemma drafts a plan with its tasks and any questions it
+has, and nothing runs until you approve the plan. Through Claude you can answer the questions,
+edit or remove tasks, run the whole plan or one task at a time, and approve or reject each
+finished task. Use plan mode for long or costly studies that you want to shape first.
+
+**Answer Lemma's questions.** When Lemma stops for a decision, such as approval of a step,
+Claude puts the question to you and acts only on your answer.
+
+**Bring results back.** Ask Claude to list the files in a session and download the ones you
+want. Downloads never overwrite a local file: a name that is already taken gets a number added.
+
+**Open the session in the browser.** Ask Claude to open a session to read every step, view
+notebooks, or continue the work yourself in Lemma.
+
+## Settings
+
+Change these with `/plugin configure lemma@axiomatic-ai`.
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| Open sessions in the browser | On | Opens each new session in your browser as soon as Claude sends its first message. |
+| Default model | Lemma's default | The model a new session uses when you don't name one. Lemma's default is the model Lemma would use in the browser. The other values are Anthropic Pro Fast, Anthropic Pro, Anthropic Normal, Google Pro, Google Normal, Open-weight Pro, and Open-weight Normal. |
+| Default machine | Standard | The machine a new session runs on when you don't name one. The values are Standard, Enhanced, High performance, Max, and GPU. Larger machines cost more. The machine cannot change once a session has started. |
+
+Type the model and machine values as shown. Capital letters and punctuation don't matter. A value
+the plugin doesn't recognize is ignored, and the default is used instead.
+
+To set them while installing from a terminal, add `--config` to the install command:
+
+```bash
+claude plugin install lemma@axiomatic-ai --config "default_machine=High performance"
 ```
-cd plugins/axiomaticai/server
-uv sync
-uv run pytest
-uv run ruff check . && uv run ruff format --check .
+
+You can also name a model or machine in your request, such as "use a GPU machine for this".
+Ask Claude to list the models and machines available to your account and what each machine
+costs.
+
+## Your data
+
+- Files you name are uploaded to the Lemma session and stay in that session's workspace, as if
+  you had added them in the browser. Claude uploads only the files you name.
+- The sign-in is stored in your operating system's keychain under `axiomatic-lemma`. Signing
+  out removes it.
+- Nothing runs in the background while you are not using Lemma. After Claude starts a run, a
+  background process waits for the run to end so it can tell Claude, and then exits.
+
+## Troubleshooting
+
+**The browser didn't open for sign-in.** Claude shows a sign-in link instead. Open it, sign in,
+and tell Claude to try again.
+
+**Sign-in fails to complete.** Sign-in receives the browser's redirect on `127.0.0.1`, on the
+first free port of 47815, 47816, and 47817. Check that another program is not using all three
+and that a firewall is not blocking local connections.
+
+**"Lemma is still working on this conversation."** A Lemma session runs one task at a time.
+Wait for the current run to end, or ask Claude to start a new session.
+
+**"This Lemma account has used all of its plan's tokens."** Check your usage and plan in
+Lemma's settings in the browser.
+
+**Lemma tools are missing in Claude Code.** Run `/reload-plugins`, and check that `uv --version`
+works in the terminal Claude Code was started from.
+
+**The run ended without an answer.** Ask Claude for the session link and open it in the browser
+to see what happened.
+
+## Update or remove
+
+```bash
+claude plugin marketplace update axiomatic-ai
 ```
 
-From the repository root, check both manifests:
-
-```
-claude plugin validate --strict plugins/axiomaticai
-claude plugin validate --strict .
+```bash
+claude plugin update lemma@axiomatic-ai
 ```
 
-To try a local checkout, add the repository directory as a marketplace:
+Restart Claude Code after an update. To remove the plugin:
 
+```bash
+claude plugin uninstall lemma@axiomatic-ai
 ```
-/plugin marketplace add /path/to/axiomatic-harness-plugins
-/plugin install axiomaticai@axiomatic-ai
-```
+
+## Support
+
+Email [developers@axiomatic-ai.com](mailto:developers@axiomatic-ai.com).
+
+To work on the plugin itself, see [CONTRIBUTING.md](CONTRIBUTING.md).
