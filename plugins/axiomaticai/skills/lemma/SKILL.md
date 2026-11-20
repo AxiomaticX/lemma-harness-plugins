@@ -40,6 +40,25 @@ colleague: the goal, what you already know, and what a good result looks like. C
 
 Both return `conversation_id`, `run_id` and `url`. Keep all three.
 
+## Pick up an earlier conversation
+
+When the user refers to a Lemma conversation without its URL, such as "the Monte Carlo session",
+find it with `find_conversations`, searching with the distinctive words they used. When they mean
+a recent one but give nothing to search for, such as "what I was doing in Lemma yesterday", use
+`list_conversations`, which lists them by when they were last active. `shared_by` marks one a
+colleague shared.
+
+- One clear match: tell the user which conversation it is, by its title and when it was last
+  active. Several plausible matches: ask the user which one they mean. No match: say the search
+  found nothing, not that the conversation does not exist, and try other words they give you. Do
+  not start a new conversation unless they ask.
+- Before you send to it, read it with `read_conversation`. It returns the latest 10 messages,
+  newest first; raise `index` by the page size to go further back, only as far as the next
+  message needs, or pass `order` `oldest` to read from the start. Then write that message from
+  what you read and send it with `send_message`.
+- `busy` means a run is going in it now, and you have no run id to wait on. Tell the user, give
+  them `url`, and send to it only once they say the run has finished.
+
 ## Don't answer for Lemma
 
 A question you hand to Lemma is Lemma's to answer. While the run goes, do not answer it yourself
@@ -109,6 +128,13 @@ Runs take minutes, and long ones take hours. Do not poll in a loop.
 
 Only one run can be active in a conversation. If `send_message` says the conversation is busy,
 wait for the current run first, or start a new conversation.
+
+## Long results
+
+`read_conversation`, `find_conversations`, `list_conversations`, `get_plan`, `get_result` and
+`wait_for_result` hold their output to a cap the user sets. A longer result comes back cut, with a
+note at the end. To get the rest, call the same tool again with the same arguments and
+`output_file` set to a local path, then read that file.
 
 ## Bring results back
 

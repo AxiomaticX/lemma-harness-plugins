@@ -102,7 +102,7 @@ async def download(client: LemmaClient, conversation_id: str, name: str, dest_di
     if not remote.download_url:
         raise LemmaError(f"{remote.name} is not ready to download yet.")
     dest_dir.mkdir(parents=True, exist_ok=True)
-    target = _free_path(dest_dir / Path(remote.name).name)
+    target = free_path(dest_dir / Path(remote.name).name)
     partial = target.with_name(target.name + ".part")
     try:
         async with (
@@ -120,10 +120,10 @@ async def download(client: LemmaClient, conversation_id: str, name: str, dest_di
     return target
 
 
-def _free_path(path: Path) -> Path:
-    """``path``, or ``name (n).ext`` when something is already there."""
+def free_path(path: Path) -> Path:
+    """``path``, or ``name (n).ext`` when something is already there, a dangling link included."""
     candidate, n = path, 1
-    while candidate.exists():
+    while candidate.exists() or candidate.is_symlink():
         candidate = path.with_name(f"{path.stem} ({n}){path.suffix}")
         n += 1
     return candidate

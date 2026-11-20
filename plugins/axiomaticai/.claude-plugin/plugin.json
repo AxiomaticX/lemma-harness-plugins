@@ -1,8 +1,8 @@
 {
   "name": "axiomaticai",
   "displayName": "Axiomatic AI",
-  "version": "0.6.1",
-  "description": "Hand engineering and science work to Lemma: start a conversation, send files, wait for the run, read the answer, download results, and open it in the browser.",
+  "version": "0.7.0",
+  "description": "Hand engineering and science work to Lemma: start a conversation or find and read an earlier one, send files, wait for the run, read the answer, download results, and open it in the browser.",
   "author": {
     "name": "Axiomatic AI",
     "email": "developers@axiomatic-ai.com"
@@ -37,6 +37,12 @@
       "description": "The machine a new conversation runs on when Claude names none.",
       "options": ["Standard", "Enhanced", "High performance", "Max", "GPU"],
       "default": "Standard"
+    },
+    "max_tool_output_chars": {
+      "type": "number",
+      "title": "Tool output cap",
+      "description": "The most characters the tools that read conversations, plans and results return to Claude. A longer result is cut, and Claude can save the whole of it to a file instead.",
+      "default": 40000
     }
   }
 }
