@@ -14,12 +14,25 @@ TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 class LemmaClient:
     """Bearer-authenticated calls with one refresh-and-retry on 401."""
 
-    def __init__(self, session: Session, http: httpx.AsyncClient | None = None) -> None:
+    def __init__(
+        self,
+        session: Session,
+        http: httpx.AsyncClient | None = None,
+        *,
+        unusable: str | None = None,
+    ) -> None:
         self.session = session
         self.target = session.target
+        self.unusable = unusable
         self._http = http or httpx.AsyncClient(base_url=self.target.api_url, timeout=TIMEOUT)
 
+    def ensure_usable(self) -> None:
+        """Refuse every call when the plugin's settings name no Lemma to call."""
+        if self.unusable:
+            raise LemmaError(self.unusable)
+
     async def request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        self.ensure_usable()
         response = await self._send(method, path, await self.session.access_token(), **kwargs)
         if response.status_code == 401:
             response = await self._send(method, path, await self.session.refresh(), **kwargs)
@@ -28,6 +41,7 @@ class LemmaClient:
 
     @asynccontextmanager
     async def stream(self, method: str, path: str, **kwargs: Any):
+        self.ensure_usable()
         token = await self.session.access_token()
         async with self._http.stream(method, path, headers=_bearer(token), **kwargs) as response:
             if response.status_code != 401:

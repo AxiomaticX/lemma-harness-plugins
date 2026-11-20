@@ -96,7 +96,10 @@ def main() -> None:
     found = hook_run(json.load(sys.stdin))
     if found is None:
         return
-    lemma = target(os.environ.get("CLAUDE_PLUGIN_OPTION_ENVIRONMENT"))
+    try:
+        lemma = target(os.environ.get("CLAUDE_PLUGIN_OPTION_ENVIRONMENT"))
+    except ValueError:
+        return
     client = LemmaClient(Session(lemma, args.data_dir, interactive=False))
     print(asyncio.run(follow(client, *found)), flush=True)
     sys.exit(WAKE_CLAUDE)

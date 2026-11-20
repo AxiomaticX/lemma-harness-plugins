@@ -2,7 +2,6 @@
 
 import functools
 import os
-import re
 import uuid
 import webbrowser
 from collections.abc import Awaitable, Callable
@@ -17,7 +16,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from .auth import Session
 from .client import LemmaClient, options, plan, runs
 from .client import files as remote_files
-from .config import Target, target
+from .config import TARGETS, Target, choice_key, find_choice, target
 from .errors import LemmaError
 
 MAX_WAIT_SECONDS = 600
@@ -156,16 +155,8 @@ MACHINE_CHOICES: dict[str, str] = {
     "Max": "max",
     "GPU": "gpu",
 }
-
-
-def _choice_key(label: str) -> str:
-    return " ".join(re.findall(r"[a-z0-9]+", label.lower()))
-
-
-def _choice[V](choices: dict[str, V], typed: str | None) -> V | None:
-    """The choice whose label matches what the user typed, ignoring case and punctuation."""
-    wanted = _choice_key(typed or "")
-    return next((value for label, value in choices.items() if _choice_key(label) == wanted), None)
+LEMMA_DEFAULT = "Lemma's default"
+FIX_SETTINGS = "Change it with /plugin configure lemma@axiomatic-ai, then run /reload-plugins."
 
 
 @dataclass
@@ -176,18 +167,40 @@ class App:
     open_browser: bool
     default_model: tuple[str, str] | None = None
     default_machine: str | None = None
+    settings_note: str | None = None
 
     @classmethod
     def from_env(cls) -> "App":
         data_dir = Path(os.environ.get("LEMMA_DATA_DIR") or Path.home() / ".lemma-mcp")
-        lemma = target(os.environ.get("LEMMA_ENVIRONMENT"))
+        unusable = None
+        try:
+            lemma = target(os.environ.get("LEMMA_ENVIRONMENT"))
+        except ValueError as e:
+            lemma = TARGETS["production"]
+            unusable = f"{e} {FIX_SETTINGS}"
+        typed_model = os.environ.get("LEMMA_DEFAULT_MODEL", "")
+        typed_machine = os.environ.get("LEMMA_DEFAULT_MACHINE", "")
+        default_model = find_choice(MODEL_CHOICES, typed_model)
+        default_machine = find_choice(MACHINE_CHOICES, typed_machine)
+        ignored = []
+        if default_model is None and choice_key(typed_model) not in ("", choice_key(LEMMA_DEFAULT)):
+            ignored.append(f"default model {typed_model!r}, so Lemma's default model was used")
+        if default_machine is None and typed_machine.strip():
+            ignored.append(
+                f"default machine {typed_machine!r}, so Lemma's default machine was used"
+            )
         return cls(
             target=lemma,
-            client=LemmaClient(Session(lemma, data_dir)),
+            client=LemmaClient(Session(lemma, data_dir), unusable=unusable),
             project_dir=Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd()),
             open_browser=os.environ.get("LEMMA_OPEN_BROWSER", "").lower() != "false",
-            default_model=_choice(MODEL_CHOICES, os.environ.get("LEMMA_DEFAULT_MODEL")),
-            default_machine=_choice(MACHINE_CHOICES, os.environ.get("LEMMA_DEFAULT_MACHINE")),
+            default_model=default_model,
+            default_machine=default_machine,
+            settings_note=(
+                f"The plugin did not recognize the {' or the '.join(ignored)}. {FIX_SETTINGS}"
+                if ignored
+                else None
+            ),
         )
 
     def starting(
@@ -238,6 +251,12 @@ def build_server(app: App) -> MCPServer:
         url = app.target.conversation_url(conversation_id)
         return {"conversation_id": conversation_id, "run_id": run_id, "url": url}
 
+    def started_new(conversation_id: str, run_id: str) -> dict[str, Any]:
+        result = started(conversation_id, run_id)
+        if app.settings_note:
+            result["settings_note"] = app.settings_note
+        return result
+
     async def send(
         conversation_id: str,
         content: str | None,
@@ -269,7 +288,7 @@ def build_server(app: App) -> MCPServer:
         )
         if app.open_browser:
             webbrowser.open(app.target.conversation_url(conversation_id))
-        return started(conversation_id, run_id)
+        return started_new(conversation_id, run_id)
 
     @server.tool(description=SEND_MESSAGE)
     @_reported
@@ -403,7 +422,7 @@ def build_server(app: App) -> MCPServer:
         run_id = await send(conversation_id, None, files, settings)
         if app.open_browser:
             webbrowser.open(app.target.conversation_url(conversation_id))
-        return started(conversation_id, run_id)
+        return started_new(conversation_id, run_id)
 
     @server.tool(description=RUN_PLAN)
     @_reported
@@ -459,9 +478,11 @@ def build_server(app: App) -> MCPServer:
         return {"path": str(saved)}
 
     @server.tool()
+    @_reported
     async def open_in_browser(conversation_id: str) -> dict[str, Any]:
         """Open a conversation in Lemma in the user's default browser. If opened is false, no
         browser could be opened: give the user url instead."""
+        app.client.ensure_usable()
         url = app.target.conversation_url(conversation_id)
         return {"opened": webbrowser.open(url), "url": url}
 
@@ -469,6 +490,7 @@ def build_server(app: App) -> MCPServer:
     @_reported
     async def login() -> str:
         """Sign in to Lemma in the browser. Other tools do this on first use."""
+        app.client.ensure_usable()
         await app.client.session.refresh()
         return f"Signed in to Lemma ({app.target.name})."
 
@@ -476,6 +498,7 @@ def build_server(app: App) -> MCPServer:
     @_reported
     async def logout() -> str:
         """Sign out of Lemma on this machine."""
+        app.client.ensure_usable()
         await app.client.session.logout()
         return f"Signed out of Lemma ({app.target.name})."
 

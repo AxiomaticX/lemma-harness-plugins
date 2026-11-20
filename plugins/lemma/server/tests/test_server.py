@@ -39,6 +39,7 @@ def test_conversations_open_in_the_browser_unless_turned_off(
         ("Anthropic · Pro", "High performance", ("anthropic", "pro"), "high_performance"),
         ("anthropic pro fast", "gpu", ("anthropic", "pro_fast"), "gpu"),
         ("  OPEN-WEIGHT normal ", "high-performance", ("open", "normal"), "high_performance"),
+        ("Openweight Pro", "highperformance", ("open", "pro"), "high_performance"),
         ("Lemma's default", "Standard", None, "standard"),
         ("", "", None, None),
         ("Anthropic Ultra", "huge", None, None),
@@ -60,6 +61,59 @@ def test_default_model_and_machine_ignore_case_and_punctuation(
 
     assert app.default_model == expected_model
     assert app.default_machine == expected_machine
+
+
+def _env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **settings: str) -> None:
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    for name, value in settings.items():
+        monkeypatch.setenv(f"LEMMA_{name.upper()}", value)
+
+
+async def test_an_unknown_environment_starts_but_every_tool_explains_the_setting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    _env(monkeypatch, tmp_path, environment="prod")
+    server = build_server(App.from_env())
+
+    for tool, arguments in [
+        ("create_conversation", {"content": "go", "mode": "act"}),
+        ("list_files", {"conversation_id": "c1"}),
+        ("login", {}),
+        ("open_in_browser", {"conversation_id": "c1"}),
+    ]:
+        with pytest.raises(ToolError, match=r"'prod'.*production, staging, or dev"):
+            await server.call_tool(tool, arguments)
+
+
+async def test_a_default_that_matches_nothing_is_reported_when_a_session_starts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, client: LemmaClient, api
+):
+    _env(monkeypatch, tmp_path, default_model="Antropic Pro", default_machine="Stnadard")
+    api.post(url__regex=r"https://api.test/conversations/[^/]+/messages").mock(
+        return_value=httpx.Response(202, json={"active": True, "run_id": "r1", "started_at": None})
+    )
+    app = replace(App.from_env(), target=client.target, client=client, open_browser=False)
+    server = build_server(app)
+
+    first = _structured(
+        await server.call_tool("create_conversation", {"content": "go", "mode": "act"})
+    )
+    workflow = _structured(await server.call_tool("start_workflow", {"name": "survey"}))
+
+    assert "'Antropic Pro'" in first["settings_note"]
+    assert "'Stnadard'" in first["settings_note"]
+    assert workflow["settings_note"] == first["settings_note"]
+
+
+async def test_no_settings_note_when_the_defaults_match(app: App, api):
+    api.post(url__regex=r"https://api.test/conversations/[^/]+/messages").mock(
+        return_value=httpx.Response(202, json={"active": True, "run_id": "r1", "started_at": None})
+    )
+    started = _structured(
+        await build_server(app).call_tool("create_conversation", {"content": "go", "mode": "act"})
+    )
+
+    assert "settings_note" not in started
 
 
 async def test_only_a_new_conversation_opens_in_the_browser(
