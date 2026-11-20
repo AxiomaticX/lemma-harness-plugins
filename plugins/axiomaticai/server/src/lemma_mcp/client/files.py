@@ -121,9 +121,9 @@ async def download(client: LemmaClient, conversation_id: str, name: str, dest_di
 
 
 def free_path(path: Path) -> Path:
-    """``path``, or ``name (n).ext`` when something is already there."""
+    """``path``, or ``name (n).ext`` when something is already there, a dangling link included."""
     candidate, n = path, 1
-    while candidate.exists():
+    while candidate.exists() or candidate.is_symlink():
         candidate = path.with_name(f"{path.stem} ({n}){path.suffix}")
         n += 1
     return candidate
