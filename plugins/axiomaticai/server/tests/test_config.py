@@ -1,22 +1,6 @@
-import pytest
-
-from lemma_mcp.config import target
+from lemma_mcp.config import TARGET
 
 
-@pytest.mark.parametrize(
-    ("name", "api_url"),
-    [
-        (None, "https://api.axiomatic-ai.com"),
-        ("", "https://api.axiomatic-ai.com"),
-        ("production", "https://api.axiomatic-ai.com"),
-        (" Staging ", "https://api.staging.axiomatic-ai.com"),
-        ("dev", "https://api.dev.axiomatic-ai.com"),
-    ],
-)
-def test_the_environment_named_or_production(name, api_url):
-    assert target(name).api_url == api_url
-
-
-def test_an_unknown_environment_is_refused():
-    with pytest.raises(ValueError, match="production, staging, dev"):
-        target("local")
+def test_the_plugin_talks_to_production_lemma():
+    assert TARGET.api_url == "https://api.axiomatic-ai.com"
+    assert TARGET.conversation_url("c1") == "https://lemma.axiomatic.ai/en/lemma/c1"

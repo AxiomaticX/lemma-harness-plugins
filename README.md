@@ -36,10 +36,6 @@ Or by hand, in Claude Code:
 The install asks whether to open each new conversation in the browser (on by default). Change
 it later with `/plugin configure axiomaticai@axiomatic-ai`.
 
-The plugin talks to production Lemma. To use staging or dev, set its `environment` option to
-`staging` or `dev` with `/plugin configure axiomaticai@axiomatic-ai`, or install with
-`--config environment=staging`.
-
 ## Which local files Lemma can reach
 
 Files are sent from, and saved to, the open workspace (the folders Claude Code reports over MCP),

@@ -127,7 +127,7 @@ class CallbackListener:
 
 
 class TokenStore:
-    """The refresh token in the OS keychain, one per environment."""
+    """The refresh token in the OS keychain, under the target's name."""
 
     def __init__(self, target: Target, data_dir: Path) -> None:
         self._account = target.name
