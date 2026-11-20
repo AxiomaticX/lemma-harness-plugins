@@ -9,12 +9,6 @@
   },
   "keywords": ["axiomatic", "lemma"],
   "userConfig": {
-    "environment": {
-      "type": "string",
-      "title": "Lemma environment",
-      "description": "Which Lemma to use: production, staging, or dev. Sign-in and sessions are separate per environment.",
-      "default": "production"
-    },
     "open_browser": {
       "type": "boolean",
       "title": "Open sessions in the browser",

@@ -61,6 +61,6 @@ def target(name: str | None) -> Target:
     found = find_choice(TARGETS, name or "production")
     if found is None:
         raise ValueError(
-            f"The Lemma environment setting is {name!r}, which is not production, staging, or dev."
+            f"LEMMA_ENVIRONMENT is {name!r}, which is not production, staging, or dev."
         )
     return found

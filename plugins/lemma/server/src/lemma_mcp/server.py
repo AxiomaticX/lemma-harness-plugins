@@ -177,7 +177,7 @@ class App:
             lemma = target(os.environ.get("LEMMA_ENVIRONMENT"))
         except ValueError as e:
             lemma = TARGETS["production"]
-            unusable = f"{e} {FIX_SETTINGS}"
+            unusable = f"{e} Unset it or correct it, then restart Claude Code."
         typed_model = os.environ.get("LEMMA_DEFAULT_MODEL", "")
         typed_machine = os.environ.get("LEMMA_DEFAULT_MACHINE", "")
         default_model = find_choice(MODEL_CHOICES, typed_model)
