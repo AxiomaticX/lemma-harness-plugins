@@ -40,6 +40,13 @@ The plugin talks to production Lemma. To use staging or dev, set its `environmen
 `staging` or `dev` with `/plugin configure axiomaticai@axiomatic-ai`, or install with
 `--config environment=staging`.
 
+## Which local files Lemma can reach
+
+Files are sent from, and saved to, only the project (`CLAUDE_PROJECT_DIR`) and any folders listed
+in `LEMMA_ALLOWED_DIRS` (separated by `:`). Hidden files and folders, such as `.env`, `.ssh` or
+`.aws`, are always refused. Claude cannot change this list; set it in the environment that starts
+Claude Code.
+
 ## Sign in
 
 The first Lemma tool call opens the browser to sign in to Lemma with your usual account. The

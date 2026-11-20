@@ -3,15 +3,19 @@
 import functools
 import os
 import uuid
+import warnings
 import webbrowser
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal, NotRequired, TypedDict
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 import httpx
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.shared.exceptions import MCPDeprecationWarning
 from pydantic import Field
 
 from .auth import Session
@@ -167,6 +171,7 @@ class App:
     open_browser: bool
     default_model: tuple[str, str] | None = None
     default_machine: str | None = None
+    allowed_dirs: tuple[Path, ...] = ()
 
     @classmethod
     def from_env(cls) -> "App":
@@ -179,6 +184,9 @@ class App:
             open_browser=os.environ.get("LEMMA_OPEN_BROWSER", "").lower() != "false",
             default_model=MODEL_CHOICES.get(os.environ.get("LEMMA_DEFAULT_MODEL", "")),
             default_machine=MACHINE_CHOICES.get(os.environ.get("LEMMA_DEFAULT_MACHINE", "")),
+            allowed_dirs=tuple(
+                Path(p) for p in os.environ.get("LEMMA_ALLOWED_DIRS", "").split(os.pathsep) if p
+            ),
         )
 
     def starting(
@@ -194,9 +202,37 @@ class App:
             "sandbox_type": machine or self.default_machine,
         }
 
-    def local_path(self, raw: str) -> Path:
+    def local_path(self, raw: str, workspace: tuple[Path, ...] = ()) -> Path:
+        """A path files may be sent from or saved to: inside the project, the client's workspace
+        or LEMMA_ALLOWED_DIRS, and not hidden, so secrets such as .ssh or .env never reach Lemma."""
         path = Path(raw).expanduser()
-        return path if path.is_absolute() else self.project_dir / path
+        base = workspace[0] if workspace else self.project_dir
+        path = (path if path.is_absolute() else base / path).resolve()
+        for root in (*workspace, self.project_dir, *self.allowed_dirs):
+            root = root.expanduser().resolve()
+            if path.is_relative_to(root):
+                if any(part.startswith(".") for part in path.relative_to(root).parts):
+                    raise ToolError(f"{raw} is hidden; hidden files and folders are not sent.")
+                return path
+        raise ToolError(
+            f"{raw} is outside the project ({base}). Ask the user to move it there, "
+            "or to add its folder to LEMMA_ALLOWED_DIRS."
+        )
+
+
+async def _workspace(ctx: Context | None) -> tuple[Path, ...]:
+    """The folders the client says the user is working in (MCP roots), when it shares them."""
+    try:
+        capabilities = ctx.client_capabilities if ctx else None
+        if capabilities is None or capabilities.roots is None:
+            return ()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", MCPDeprecationWarning)
+            listed = await ctx.session.list_roots()
+    except Exception:
+        return ()
+    uris = (urlparse(str(root.uri)) for root in listed.roots)
+    return tuple(Path(url2pathname(uri.path)) for uri in uris if uri.scheme == "file")
 
 
 def _reported[**P, R](tool: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
@@ -234,8 +270,10 @@ def build_server(app: App) -> MCPServer:
         content: str | None,
         files: list[str] | None,
         settings: dict[str, Any],
+        ctx: Context,
     ) -> str:
-        paths = [app.local_path(p) for p in files or []]
+        workspace = await _workspace(ctx) if files else ()
+        paths = [app.local_path(p, workspace) for p in files or []]
         file_ids = await remote_files.upload(app.client, paths) if paths else []
         chosen = {key: value for key, value in settings.items() if value is not None}
         return await runs.send(app.client, conversation_id, content, file_ids, chosen)
@@ -250,6 +288,7 @@ def build_server(app: App) -> MCPServer:
         machine: Machine | None = None,
         files: list[str] | None = None,
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
+        ctx: Context = None,
     ) -> dict[str, Any]:
         conversation_id = str(uuid.uuid4())
         run_id = await send(
@@ -257,6 +296,7 @@ def build_server(app: App) -> MCPServer:
             content,
             files,
             {"mode": mode, **app.starting(model, provider, machine)},
+            ctx,
         )
         if app.open_browser:
             webbrowser.open(app.target.conversation_url(conversation_id))
@@ -272,9 +312,11 @@ def build_server(app: App) -> MCPServer:
         provider: Provider | None = None,
         files: list[str] | None = None,
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
+        ctx: Context = None,
     ) -> dict[str, Any]:
         settings = {"mode": mode, "model": model, "provider": provider}
-        return started(conversation_id, await send(conversation_id, content, files, settings))
+        run_id = await send(conversation_id, content, files, settings, ctx)
+        return started(conversation_id, run_id)
 
     @server.tool(description=ANSWER_QUESTIONS)
     @_reported
@@ -385,13 +427,14 @@ def build_server(app: App) -> MCPServer:
         provider: Provider | None = None,
         machine: Machine | None = None,
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
+        ctx: Context = None,
     ) -> dict[str, Any]:
         conversation_id = str(uuid.uuid4())
         settings = {
             "workflow": {"name": name, "inputs": inputs or {}},
             **app.starting(model, provider, machine),
         }
-        run_id = await send(conversation_id, None, files, settings)
+        run_id = await send(conversation_id, None, files, settings, ctx)
         if app.open_browser:
             webbrowser.open(app.target.conversation_url(conversation_id))
         return started(conversation_id, run_id)
@@ -443,10 +486,11 @@ def build_server(app: App) -> MCPServer:
 
     @server.tool(description=DOWNLOAD_FILE)
     @_reported
-    async def download_file(conversation_id: Id, name: str, dest_dir: str) -> dict[str, str]:
-        saved = await remote_files.download(
-            app.client, conversation_id, name, app.local_path(dest_dir)
-        )
+    async def download_file(
+        conversation_id: Id, name: str, dest_dir: str, ctx: Context = None
+    ) -> dict[str, str]:
+        dest = app.local_path(dest_dir, await _workspace(ctx))
+        saved = await remote_files.download(app.client, conversation_id, name, dest)
         return {"path": str(saved)}
 
     @server.tool()
