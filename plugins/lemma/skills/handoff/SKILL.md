@@ -124,6 +124,10 @@ Runs take minutes, and long ones take hours. Do not poll in a loop.
   simulation or a whole plan.
 - To block until the run ends, call `wait_for_result`. It returns as soon as the run ends, or
   after `timeout_s` seconds (600 at most) with outcome `running`.
+- In Codex you are not woken. Call `wait_for_result` after starting a run: each call waits up to
+  240 seconds and returns the outcome. If it is still `running`, call `wait_for_result` again
+  until it ends, or tell the user it is still running with `url` and check later, without
+  answering what you handed over yourself.
 - `get_result` reports the outcome at once without waiting.
 
 ## Read the outcome

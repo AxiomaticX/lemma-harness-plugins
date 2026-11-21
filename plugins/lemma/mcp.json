@@ -1,0 +1,13 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "handoff": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--frozen", "--no-dev", "--quiet", "--project", "${PLUGIN_ROOT}/server", "lemma-mcp"],
+      "env": {
+        "LEMMA_HARNESS": "codex"
+      }
+    }
+  }
+}
