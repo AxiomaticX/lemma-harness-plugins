@@ -117,8 +117,38 @@ costs.
   you had added them in the browser. Claude uploads only the files you name.
 - The sign-in is stored in your operating system's keychain under `axiomatic-lemma`. Signing
   out removes it.
-- Nothing runs in the background while you are not using Lemma. After Claude starts a run, a
-  background process waits for the run to end so it can tell Claude, and then exits.
+
+## Which local files Lemma can reach
+
+Files are sent from, and saved to, the open workspace (the folders Claude Code reports over MCP),
+the project (`CLAUDE_PROJECT_DIR`), and any folders listed in `LEMMA_ALLOWED_DIRS` (separated by
+`:`). For any other path, Claude Code asks you to allow it first; Claude cannot answer for you.
+Hidden files and folders, such as `.env`, `.ssh` or `.aws`, are always refused. Claude cannot
+change `LEMMA_ALLOWED_DIRS`; set it in the environment that starts Claude Code.
+
+## What the plugin runs, sends and fetches
+
+- **Runs locally:** the `lemma-mcp` server, which Claude Code starts when the plugin loads and
+  keeps for the session, and the `lemma-wake` hook, started after each Lemma tool call that starts
+  or waits on a run; it exits at once when no run is going. Both are the Python in
+  `plugins/lemma/server/`, run with `uv`.
+- **Fetches on first start of each plugin version:** `uv` installs the server's runtime
+  dependencies from PyPI, pinned by `server/uv.lock`. If no Python 3.12 or newer is installed,
+  `uv` first downloads one from its python-build-standalone releases on GitHub.
+- **Sends to Lemma:** over HTTPS to `api.axiomatic-ai.com`, the messages, settings and answers
+  Claude passes to Lemma's tools, and the files you name in them. Files go to the storage link
+  Lemma returns for each upload, and downloads come from the storage link Lemma returns for each
+  file, following any redirect that link gives.
+- **Signs in with:** `auth.axiomatic-ai.com`, through your browser. The refresh token is kept in
+  the OS keychain and sent only to `auth.axiomatic-ai.com`.
+- **Opens in your browser:** the sign-in page, each new session on `lemma.axiomatic.ai` unless
+  you turned that off, and any session Claude opens with `open_in_browser`.
+- **Writes locally:** files you ask Claude to download, into the folders listed under "Which local
+  files Lemma can reach", each written first as a `.part` file beside it; the refresh token, in the
+  OS keychain; a sign-in lock file in `~/.lemma-mcp`; output Claude saves with `output_file`; and
+  the Python environment, in `server/.venv` in the installed plugin and in `uv`'s cache.
+
+Nothing else is sent anywhere.
 
 ## Troubleshooting
 

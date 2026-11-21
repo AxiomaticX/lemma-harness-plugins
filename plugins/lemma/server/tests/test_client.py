@@ -1,3 +1,5 @@
+from importlib.metadata import version
+
 import httpx
 import pytest
 from conftest import TOKEN_URL, token_response
@@ -12,6 +14,16 @@ async def test_calls_carry_the_bearer_token(client: LemmaClient, api):
     await client.request("GET", "/ping")
 
     assert route.calls.last.request.headers["Authorization"] == "Bearer at-1"
+
+
+async def test_calls_name_the_plugin_version_and_harness(signed_in, api, monkeypatch):
+    monkeypatch.setenv("LEMMA_HARNESS", "codex")
+    route = api.get("https://api.test/ping").mock(return_value=httpx.Response(200))
+
+    await LemmaClient(signed_in).request("GET", "/ping")
+
+    expected = f"lemma-mcp/{version('lemma-mcp')} (codex)"
+    assert route.calls.last.request.headers["User-Agent"] == expected
 
 
 async def test_a_rejected_token_is_refreshed_once_and_the_call_retried(client: LemmaClient, api):
@@ -49,3 +61,10 @@ async def test_any_other_error_carries_lemmas_detail(client: LemmaClient, api):
 
     with pytest.raises(LemmaError, match="could not be started"):
         await client.request("GET", "/ping")
+
+
+@pytest.mark.parametrize("path", ["/files/../users/me", "/files/a?b", "/files/a%2F", "/a//b", "x"])
+async def test_a_path_that_could_escape_its_endpoint_is_never_sent(client: LemmaClient, api, path):
+    with pytest.raises(LemmaError, match="Refusing"):
+        await client.request("GET", path)
+    assert not api.calls

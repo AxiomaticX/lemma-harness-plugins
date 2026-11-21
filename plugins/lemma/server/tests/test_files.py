@@ -66,9 +66,11 @@ async def test_a_failed_upload_is_marked_failed(
         return_value=httpx.Response(200)
     )
 
-    with pytest.raises(LemmaError, match="Uploading data.csv failed"):
+    with pytest.raises(LemmaError, match="Uploading data.csv failed") as raised:
         await files.upload(client, [data_file])
     assert json.loads(confirm.calls.last.request.content) == {"status": "error"}
+    assert "HTTP 403" in str(raised.value)
+    assert "storage.test" not in str(raised.value) and "sig=" not in str(raised.value)
 
 
 async def test_a_missing_local_file_is_refused_before_anything_is_sent(
@@ -120,6 +122,24 @@ async def test_a_download_link_that_redirects_to_storage_is_followed(
 
     assert saved.read_bytes() == b"png-bytes"
     assert "Authorization" not in fetched.calls.last.request.headers
+
+
+async def test_a_failed_download_names_the_status_not_the_signed_link(
+    client: LemmaClient, api, tmp_path: Path
+):
+    api.get(CONVERSATION).mock(
+        return_value=_conversation_files(
+            {"id": "f9", "name": "fit.png", "download_url": "https://storage.test/fit.png?sig=x"}
+        )
+    )
+    api.get("https://storage.test/fit.png?sig=x").mock(return_value=httpx.Response(403))
+
+    with pytest.raises(LemmaError, match="Downloading fit.png failed") as raised:
+        await files.download(client, "c1", "fit.png", tmp_path)
+
+    assert "HTTP 403" in str(raised.value)
+    assert "storage.test" not in str(raised.value) and "sig=" not in str(raised.value)
+    assert not list(tmp_path.glob("fit*"))
 
 
 async def test_a_file_name_cannot_write_outside_the_destination(

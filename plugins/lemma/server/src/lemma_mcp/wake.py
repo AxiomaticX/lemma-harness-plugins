@@ -1,17 +1,15 @@
 """The background hook that wakes Claude when a run it started, or waited on, ends."""
 
-import argparse
 import asyncio
 import json
 import sys
 import time
-from pathlib import Path
 from typing import Any
 
 from .auth import Session
 from .client import LemmaClient
 from .client.runs import RUNNING, wait
-from .config import TARGET
+from .config import TARGET, data_dir
 from .errors import NotFoundError, NotLoggedInError
 
 DEFAULT_MINUTES = 60
@@ -89,12 +87,9 @@ async def follow(client: LemmaClient, conversation_id: str, run_id: str, window:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="lemma-wake")
-    parser.add_argument("--data-dir", type=Path, required=True)
-    args = parser.parse_args()
     found = hook_run(json.load(sys.stdin))
     if found is None:
         return
-    client = LemmaClient(Session(TARGET, args.data_dir, interactive=False))
+    client = LemmaClient(Session(TARGET, data_dir(), interactive=False))
     print(asyncio.run(follow(client, *found)), flush=True)
     sys.exit(WAKE_CLAUDE)

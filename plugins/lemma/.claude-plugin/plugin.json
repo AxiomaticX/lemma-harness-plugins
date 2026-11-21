@@ -1,7 +1,7 @@
 {
   "name": "lemma",
   "displayName": "Lemma",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Hand engineering and science work to Lemma: start a session or find and read an earlier one, send files, wait for the run, read the answer, download results, and open it in the browser.",
   "author": {
     "name": "Axiomatic AI",

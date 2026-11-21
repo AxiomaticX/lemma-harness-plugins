@@ -1,13 +1,15 @@
 [project]
 name = "lemma-mcp"
-version = "0.1.0"
+version = "0.7.1"
 description = "Local MCP server and run wake-up hook for the Lemma Claude Code plugin"
 requires-python = ">=3.12"
 dependencies = [
     "filelock>=4.2",
     "httpx>=0.28",
     "keyring>=25",
-    "mcp>=1.20",
+    "mcp>=2.3",
+    "mcp-types>=2.3",
+    "pydantic>=2.11",
 ]
 
 [project.scripts]

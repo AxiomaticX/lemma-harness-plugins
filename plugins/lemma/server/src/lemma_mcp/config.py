@@ -1,7 +1,9 @@
-"""Where Lemma lives and how the plugin signs in to it."""
+"""Where Lemma lives, how the plugin signs in to it, and where it keeps its sign-in lock."""
 
+import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -25,6 +27,13 @@ TARGET = Target(
     api_url="https://api.axiomatic-ai.com",
     web_url="https://lemma.axiomatic.ai",
 )
+
+
+def data_dir() -> Path:
+    """Where the sign-in lock lives: one per user, like the keychain token it guards, so every
+    process that refreshes that token takes the same lock."""
+    chosen = os.environ.get("LEMMA_DATA_DIR")
+    return Path(chosen) if chosen else Path.home() / ".lemma-mcp"
 
 
 def choice_key(label: str) -> str:

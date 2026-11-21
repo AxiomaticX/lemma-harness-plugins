@@ -4,6 +4,7 @@ import asyncio
 import base64
 import contextlib
 import hashlib
+import html
 import secrets
 import time
 import webbrowser
@@ -115,7 +116,7 @@ class CallbackListener:
 
     @staticmethod
     async def _respond(writer: asyncio.StreamWriter, status: int, heading: str, body: str) -> None:
-        page = _PAGE.format(heading=heading, body=body).encode()
+        page = _PAGE.format(heading=html.escape(heading), body=html.escape(body)).encode()
         reason = {200: "OK", 400: "Bad Request", 404: "Not Found"}[status]
         writer.write(
             f"HTTP/1.1 {status} {reason}\r\nContent-Type: text/html; charset=utf-8\r\n"
@@ -126,7 +127,7 @@ class CallbackListener:
 
 
 class TokenStore:
-    """The refresh token in the OS keychain, one per environment."""
+    """The refresh token in the OS keychain, under the target's name."""
 
     def __init__(self, target: Target, data_dir: Path) -> None:
         self._account = target.name

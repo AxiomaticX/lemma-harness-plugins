@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "UV_PROJECT_ENVIRONMENT=\"${CLAUDE_PLUGIN_DATA}/venv\" uv run --frozen --quiet --project \"${CLAUDE_PLUGIN_ROOT}/server\" lemma-wake --data-dir \"${CLAUDE_PLUGIN_DATA}\"",
+            "command": "uv run --frozen --no-dev --quiet --project \"${CLAUDE_PLUGIN_ROOT}/server\" lemma-wake",
             "asyncRewake": true,
             "timeout": 86400
           }

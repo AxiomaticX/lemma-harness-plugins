@@ -57,7 +57,7 @@ async def _upload_one(client: LemmaClient, storage: httpx.AsyncClient, path: Pat
         stored.raise_for_status()
     except (OSError, httpx.HTTPError) as e:
         await client.request("POST", f"/files/{file_id}/confirmation", json={"status": "error"})
-        raise LemmaError(f"Uploading {path.name} failed: {e}") from e
+        raise LemmaError(f"Uploading {path.name} failed: {_reason(e)}") from e
     await client.request("POST", f"/files/{file_id}/confirmation", json={"status": "uploaded"})
     return file_id
 
@@ -115,9 +115,18 @@ async def download(client: LemmaClient, conversation_id: str, name: str, dest_di
                     out.write(chunk)
     except (OSError, httpx.HTTPError) as e:
         partial.unlink(missing_ok=True)
-        raise LemmaError(f"Downloading {remote.name} failed: {e}") from e
+        raise LemmaError(f"Downloading {remote.name} failed: {_reason(e)}") from e
     partial.rename(target)
     return target
+
+
+def _reason(error: Exception) -> str:
+    """What went wrong in a storage transfer, without the signed URL httpx puts in its messages."""
+    if isinstance(error, httpx.HTTPStatusError):
+        return f"storage answered HTTP {error.response.status_code}"
+    if isinstance(error, httpx.HTTPError):
+        return f"the transfer failed ({type(error).__name__})"
+    return str(error)
 
 
 def free_path(path: Path) -> Path:
