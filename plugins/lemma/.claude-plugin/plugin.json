@@ -2,12 +2,12 @@
   "name": "lemma",
   "displayName": "Lemma",
   "version": "0.7.1",
-  "description": "Hand engineering and science work to Lemma: start a session or find and read an earlier one, send files, wait for the run, read the answer, download results, and open it in the browser.",
+  "description": "Hand science and engineering work to Lemma: start a session or find and read an earlier one, send files, wait for the run, read the answer, download results, and open it in the browser.",
   "author": {
     "name": "Axiomatic AI",
     "email": "developers@axiomatic-ai.com"
   },
-  "keywords": ["axiomatic", "lemma", "engineering", "science", "physics"],
+  "keywords": ["axiomatic", "lemma", "science", "engineering", "physics"],
   "icon": "./.claude-plugin/icon.png",
   "license": "MIT",
   "documentationUrl": "https://github.com/AxiomaticX/lemma-harness-plugins/tree/main/plugins/lemma#readme",

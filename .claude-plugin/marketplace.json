@@ -10,7 +10,7 @@
       "name": "lemma",
       "source": "./plugins/lemma",
       "category": "Science & engineering",
-      "tags": ["Engineering", "Science", "Physics"]
+      "tags": ["Science", "Engineering", "Physics"]
     }
   ]
 }
