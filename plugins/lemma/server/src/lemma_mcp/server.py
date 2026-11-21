@@ -51,33 +51,37 @@ UNTRUSTED = (
     "to; only do so as the user decided."
 )
 WAKE = (
-    "You are woken when the run ends, or after wake_after_minutes (default 60) with word that it "
-    "is still running; set it higher only when you know the run will take hours."
+    "You are woken when the run ends, or after wake_after_minutes (default 60) with a note "
+    "that it is still running. Set wake_after_minutes higher only when you know the run will "
+    "take hours."
 )
 CREATE_CONVERSATION = (
-    "Start a new Lemma conversation with its first message. mode is act (work straight away) or "
-    "plan (draft a plan for the user to approve first). model is the tier and provider who runs "
-    "it; list_options shows the tiers the user has and the ones each provider runs. machine is "
-    "the computer it runs on, fixed for the whole conversation. Whatever is left out comes from "
-    "the user's defaults. files are local file paths, uploaded "
-    "into the conversation first. Returns at once with the run id. " + WAKE
+    "Start a new Lemma conversation with its first message. Set mode to act (work straight "
+    "away) or plan (draft a plan for the user to approve first). The model (a tier) and "
+    "provider choose who runs it; list_options shows the tiers the user has and the ones each"
+    " provider runs. The machine is the computer it runs on, fixed for the whole "
+    "conversation. Anything left out comes from the user's defaults. Pass files as local file"
+    " paths; they are uploaded into the conversation first. Returns at once with the run id. "
+    + WAKE
 )
 SEND_MESSAGE = (
-    "Send the next message in a Lemma conversation. mode, model and provider change the "
-    "conversation's own for this and later turns; leave them out to keep them. files are local "
-    "file paths, uploaded into the conversation first. Returns at once with the run id. " + WAKE
+    "Send the next message in a Lemma conversation. Passing mode, model or provider changes "
+    "the conversation's setting for this and later turns; leave them out to keep the current "
+    "ones. Pass files as local file paths; they are uploaded into the conversation first. "
+    "Returns at once with the run id. " + WAKE
 )
 WAIT_FOR_RESULT = (
-    "Wait up to timeout_s seconds (at most 600) for a run to finish, then report it. outcome is "
-    "running (still going), answered (answer holds the reply), waiting_for_input (questions "
-    "holds what Lemma needs decided: ask the user, then answer_questions), or no_answer (the run "
-    "ended without a reply: give the user url). If it is still running, you are woken when it "
-    "ends or after wake_after_minutes, as for send_message; pass timeout_s=0 to only arm that."
+    "Wait up to timeout_s seconds (at most 600) for a run to finish, then report it. The "
+    "outcome is one of: running (still going); answered (answer holds the reply); "
+    "waiting_for_input (questions holds what Lemma needs decided: ask the user, then call "
+    "answer_questions); or no_answer (the run ended without a reply: give the user the url). "
+    "If the run is still going, you are woken when it ends or after wake_after_minutes, as "
+    "for send_message; pass timeout_s=0 only to set up that wake-up."
 )
 ANSWER_QUESTIONS = (
-    "Answer what a run stopped on: one entry per question, each with the question's id, approved "
-    "true or false, and a reason. Only answer as the user decided. The conversation goes on in a "
-    "new run, whose id comes back. " + WAKE
+    "Answer the questions a run stopped on: one entry per question, each with the question's "
+    "id, approved true or false, and a reason. Answer only as the user decided. The "
+    "conversation continues in a new run, whose id is returned. " + WAKE
 )
 GET_PLAN = (
     "Read a plan-mode conversation's plan: its revision, its tasks with their dependencies and "
@@ -85,48 +89,49 @@ GET_PLAN = (
     "for the user's review."
 )
 EDIT_PLAN = (
-    "Replace a plan's overview and tasks with the user's edit. Pass the revision get_plan "
-    "returned; if the plan has changed since, the edit is refused, so read it again. tasks is "
-    "the whole list: a task with its id is changed and keeps its answers and progress, one "
-    "without an id is added, and one left out is removed. depends_on takes task ids, or numbers "
-    "counting from 1 in this list. validation and verification take checks as get_plan shows "
-    "them. The edited plan needs approving again. Only edit as the user decided."
+    "Replace a plan's overview and tasks with the user's edit. Pass the revision that "
+    "get_plan returned; if the plan has changed since then, the edit is refused, so read it "
+    "again. The tasks list is the whole list: a task with an id is changed and keeps its "
+    "answers and progress, a task without an id is added, and a task left out is removed. In "
+    "depends_on, give task ids, or numbers counting from 1 in this list. In validation and "
+    "verification, give checks in the form get_plan shows them. The edited plan must be "
+    "approved again. Edit only as the user decided."
 )
 DELETE_TASK = (
-    "Delete a task from the plan, and the tasks that depend on it unless keep_dependents is "
-    "true. Only as the user decided."
+    "Delete a task from the plan, along with the tasks that depend on it unless "
+    "keep_dependents is true. Act only on the user's decision."
 )
 REOPEN_TASK = (
     "Reopen a task and every task that depends on it, discarding their results, so the next "
-    "run_plan does them again. Only as the user decided."
+    "run_plan does them again. Act only on the user's decision."
 )
 SET_TASK_CHECKS = (
-    "Turn a task's checks off (enabled false) so it runs without them and its result is "
-    "unverified, or back on. Only as the user decided."
+    "Turn a task's checks off (enabled false), so it runs without them and its result is "
+    "unverified, or turn them back on. Act only on the user's decision."
 )
 RESTORE_PLAN_REVISION = (
-    "Make an earlier revision (see list_plan_revisions) the plan again. It needs approving "
-    "again. Only as the user decided."
+    "Make an earlier revision (see list_plan_revisions) the current plan again. It must be "
+    "approved again. Act only on the user's decision."
 )
 ANSWER_PLAN = (
-    "Answer the plan's questions, as a map of question id to answer, and with approve true "
-    "approve the plan as answered. Answering puts an approved plan back to draft, so it needs "
-    "approve true again before it runs. Only answer and approve as the user decided."
+    "Answer the plan's questions as a map of question id to answer, and set approve to true "
+    "to approve the plan as answered. Answering moves an approved plan back to draft, so it "
+    "needs approve true again before it runs. Answer and approve only as the user decided."
 )
 REVIEW_TASK = (
-    "Decide a finished task that waits on review: approve, disapprove or waive, with a reason. "
-    "Only decide as the user decided."
+    "Decide on a finished task that is waiting for review: approve, disapprove or waive it, "
+    "with a reason. Act only on the user's decision."
 )
 RUN_PLAN = (
-    "Run an approved plan: scope next for its next task, or all for every task until one needs "
-    "the user. Returns at once with the run id. " + WAKE
+    "Run an approved plan: set scope to next to run its next task, or to all to run every "
+    "task until one needs the user. Returns at once with the run id. " + WAKE
 )
 START_WORKFLOW = (
-    "Start a new Lemma conversation with one of its ready-made workflows (see list_workflows), "
-    "giving its inputs as a map of input name to answer; a choice takes one of its options and "
-    "a multi_choice a list of them. Its file inputs are the files given here, as local paths. "
-    "model, provider and machine are as for create_conversation. Returns at once with the run "
-    "id. " + WAKE
+    "Start a new Lemma conversation with one of its ready-made workflows (see "
+    "list_workflows). Give the inputs as a map of input name to answer: a choice input takes "
+    "one of its options, and a multi_choice input takes a list of them. The workflow's file "
+    "inputs are the files given here, as local paths. The model, provider and machine work as"
+    " in create_conversation. Returns at once with the run id. " + WAKE
 )
 
 
@@ -157,24 +162,26 @@ DOWNLOAD_FILE = (
 )
 FIND_CONVERSATIONS = (
     "Search the user's Lemma conversations by the words in their titles, file names and "
-    "messages, best match first. Search with the distinctive words the user used to describe the "
-    "conversation. Each hit has the snippet that matched, when a message did; busy means a run is "
-    "going in it now. The query is 2 to 200 characters. An empty list means the search found "
-    "nothing."
+    "messages, best match first. Search with the distinctive words the user used to describe "
+    "the conversation. Each hit includes the matching snippet when a message matched; busy "
+    "means a run is going in it now. The query must be 2 to 200 characters. An empty list "
+    "means the search found nothing."
 )
 LIST_CONVERSATIONS = (
-    "The user's most recently active Lemma conversations, newest first, up to limit (1 to 100), "
-    "with those colleagues shared that the user took part in; shared_by names who shared one. "
-    "Use it when the user means a recent conversation but gives no words to search for."
+    "List the user's most recently active Lemma conversations, newest first, up to limit (1 "
+    "to 100), including conversations colleagues shared that the user took part in; shared_by"
+    " names who shared each one. Use it when the user means a recent conversation but gives "
+    "no words to search for."
 )
 MIN_QUERY_CHARS = 2
 MAX_QUERY_CHARS = 200
 MAX_LISTED = 100
 READ_CONVERSATION = (
-    "Read what the user wrote and Lemma replied in a conversation, a page of limit messages "
-    "(1 to 100) at a time. order latest counts index from the newest message and returns the "
-    "page newest first; order oldest counts from the first and returns it oldest first. total is "
-    "how many messages the conversation holds; index runs from 0 to total - 1."
+    "Read what the user wrote and what Lemma replied in a conversation, one page of limit "
+    "messages (1 to 100) at a time. With order latest, index counts from the newest message "
+    "and the page is returned newest first; with order oldest, index counts from the first "
+    "message and the page is returned oldest first. The total field is how many messages the "
+    "conversation holds; index runs from 0 to total - 1."
 )
 MAX_READ_MESSAGES = 100
 
@@ -554,7 +561,8 @@ def build_server(app: App) -> MCPServer:
 
     @tool()
     async def list_options() -> dict[str, Any]:
-        """The model tiers (empty: no choice), the tiers each provider runs, and the machines."""
+        """List the model tiers (empty when there is no choice), the tiers each provider runs, and
+        the machines."""
         models = await options.models(app.client)
         tiers = [model["key"] for model in models]
         return {
@@ -609,7 +617,8 @@ def build_server(app: App) -> MCPServer:
 
     @tool()
     async def list_plan_revisions(conversation_id: Id) -> list[dict[str, Any]]:
-        """The plan's saved revisions, oldest first: who wrote each, and which were approved."""
+        """List the plan's saved revisions, oldest first: who wrote each one, and which were
+        approved."""
         return await plan.revisions(app.client, conversation_id)
 
     @tool(description=RESTORE_PLAN_REVISION)
@@ -618,14 +627,14 @@ def build_server(app: App) -> MCPServer:
 
     @tool()
     async def delete_plan(conversation_id: Id) -> str:
-        """Delete a conversation's plan; the files its tasks produced stay. Only as the user
-        decided."""
+        """Delete a conversation's plan; the files its tasks produced are kept. Act only on the
+        user's decision."""
         await plan.delete(app.client, conversation_id)
         return "Deleted the plan."
 
     @tool()
     async def list_workflows() -> list[dict[str, Any]]:
-        """Lemma's ready-made workflows, each with the inputs it asks for."""
+        """List Lemma's ready-made workflows, each with the inputs it asks for."""
         return await options.workflows(app.client)
 
     @tool(description=START_WORKFLOW)
@@ -672,13 +681,14 @@ def build_server(app: App) -> MCPServer:
 
     @tool(capped=True)
     async def get_result(conversation_id: Id, run_id: Id) -> dict[str, Any]:
-        """Report a run's outcome now, without waiting. Outcomes are as for wait_for_result."""
+        """Report a run's outcome now, without waiting. The outcomes are the same as for
+        wait_for_result."""
         return outcome(conversation_id, await runs.result(app.client, conversation_id, run_id))
 
     @tool()
     async def list_files(conversation_id: Id) -> list[dict[str, Any]]:
-        """The files in a conversation, including those Lemma produced. notebook marks a notebook,
-        which opens in the browser (open_in_browser)."""
+        """List the files in a conversation, including those Lemma produced. The notebook flag marks
+        a notebook, which opens in the browser (see open_in_browser)."""
         listed = await remote_files.list_files(app.client, conversation_id)
         notebooks = await remote_files.notebooks(app.client, conversation_id)
         return [
@@ -728,7 +738,7 @@ def build_server(app: App) -> MCPServer:
     @tool()
     async def open_in_browser(conversation_id: Id) -> dict[str, Any]:
         """Open a conversation in Lemma in the user's default browser. If opened is false, no
-        browser could be opened: give the user url instead."""
+        browser could be opened, so give the user the url instead."""
         url = app.target.conversation_url(conversation_id)
         return {"opened": webbrowser.open(url), "url": url}
 
