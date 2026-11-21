@@ -21,6 +21,13 @@ agy plugin install https://github.com/AxiomaticX/lemma-harness-plugins/tree/main
 Sign-in, usage and what the plugin sends work as described for
 [Claude Code](plugins/lemma/README.md).
 
+To change settings, ask the agent to configure Lemma, for example "configure Lemma not to open
+the browser". That calls the `configure` tool, which applies the change at once and saves it to
+`~/.lemma-mcp/config.json`. The settings are `open_browser`, `default_model` and
+`default_machine`, with the values listed in the [settings table](plugins/lemma/README.md#settings).
+`LEMMA_OPEN_BROWSER`, `LEMMA_DEFAULT_MODEL` and `LEMMA_DEFAULT_MACHINE` in the environment that
+starts Antigravity override the saved values.
+
 Antigravity has no hook to wake the agent when a run ends, so `wait_for_result` runs in the
 background with no time limit and wakes the agent when the run ends, or after
 `wake_after_minutes` (60 by default) with outcome `running`.

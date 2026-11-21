@@ -145,7 +145,8 @@ change `LEMMA_ALLOWED_DIRS`; set it in the environment that starts Claude Code.
   you turned that off, and any session Claude opens with `open_in_browser`.
 - **Writes locally:** files you ask Claude to download, into the folders listed under "Which local
   files Lemma can reach", each written first as a `.part` file beside it; the refresh token, in the
-  OS keychain; a sign-in lock file in `~/.lemma-mcp`; output Claude saves with `output_file`; and
+  OS keychain; a sign-in lock file in `~/.lemma-mcp`, and `~/.lemma-mcp/config.json` when Claude
+  saves settings with `configure`; output Claude saves with `output_file`; and
   the Python environment, in `server/.venv` in the installed plugin and in `uv`'s cache.
 
 Nothing else is sent anywhere.

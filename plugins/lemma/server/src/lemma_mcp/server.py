@@ -24,7 +24,16 @@ from pydantic import BaseModel, Field
 from .auth import Session
 from .client import LemmaClient, conversations, options, plan, runs
 from .client import files as remote_files
-from .config import TARGET, Target, choice_key, data_dir, find_choice
+from .config import (
+    CONFIG_FILENAME,
+    TARGET,
+    Target,
+    choice_key,
+    data_dir,
+    find_choice,
+    load_settings,
+    save_settings,
+)
 from .errors import LemmaError
 
 MAX_WAIT_SECONDS = 600
@@ -199,6 +208,23 @@ READ_CONVERSATION = (
     "how many messages the conversation holds; index runs from 0 to total - 1."
 )
 MAX_READ_MESSAGES = 100
+DefaultModel = Literal[
+    "Lemma's default",
+    "Anthropic · Pro Fast",
+    "Anthropic · Pro",
+    "Anthropic · Normal",
+    "Google · Pro",
+    "Google · Normal",
+    "Open-weight · Pro",
+    "Open-weight · Normal",
+]
+DefaultMachine = Literal["Standard", "Enhanced", "High performance", "Max", "GPU"]
+CONFIGURE = (
+    "Read or update the plugin's persistent settings (saved in config.json in the plugin's data "
+    "folder, so they survive plugin updates). Call with no arguments to see the current "
+    "settings; pass any subset of open_browser, default_model and default_machine to change "
+    "them immediately without restarting. Only change settings when the user asks."
+)
 
 
 PROVIDER_TIERS: dict[str, tuple[str, ...]] = {
@@ -222,6 +248,9 @@ MACHINE_CHOICES: dict[str, str] = {
     "Max": "max",
     "GPU": "gpu",
 }
+MODEL_LABELS: dict[tuple[str, str], str] = {v: k for k, v in MODEL_CHOICES.items()}
+MACHINE_LABELS: dict[str, str] = {v: k for k, v in MACHINE_CHOICES.items()}
+SETTING_ENV_VARS = ("LEMMA_OPEN_BROWSER", "LEMMA_DEFAULT_MODEL", "LEMMA_DEFAULT_MACHINE")
 MEANS_LEMMAS_DEFAULT = {"", "lemmasdefault", "lemmadefault", "default"}
 FIX_SETTINGS = "Change it with /plugin configure lemma@axiomatic-ai, then run /reload-plugins."
 
@@ -233,6 +262,12 @@ def _max_output_chars(raw: str | None) -> int:
     except (ValueError, OverflowError):
         return DEFAULT_MAX_OUTPUT_CHARS
     return chars if chars > 0 else DEFAULT_MAX_OUTPUT_CHARS
+
+
+def _parse_open_browser(raw: Any) -> bool:
+    if isinstance(raw, bool):
+        return raw
+    return str(raw).strip().lower() != "false"
 
 
 @dataclass
@@ -248,11 +283,20 @@ class App:
     mistyped_machine: str | None = None
     allowed_dirs: tuple[Path, ...] = ()
     background_wait: bool = False
+    settings_dir: Path | None = None
 
     @classmethod
     def from_env(cls) -> "App":
-        typed_model = os.environ.get("LEMMA_DEFAULT_MODEL", "")
-        typed_machine = os.environ.get("LEMMA_DEFAULT_MACHINE", "")
+        settings_dir = data_dir()
+        saved = load_settings(settings_dir)
+        typed_model = os.environ.get("LEMMA_DEFAULT_MODEL") or saved.get("default_model") or ""
+        typed_machine = (
+            os.environ.get("LEMMA_DEFAULT_MACHINE") or saved.get("default_machine") or ""
+        )
+        if os.environ.get("LEMMA_OPEN_BROWSER"):
+            open_browser = _parse_open_browser(os.environ["LEMMA_OPEN_BROWSER"])
+        else:
+            open_browser = _parse_open_browser(saved.get("open_browser", True))
         default_model = find_choice(MODEL_CHOICES, typed_model)
         default_machine = find_choice(MACHINE_CHOICES, typed_machine)
 
@@ -263,9 +307,9 @@ class App:
 
         return cls(
             target=TARGET,
-            client=LemmaClient(Session(TARGET, data_dir())),
+            client=LemmaClient(Session(TARGET, settings_dir)),
             project_dir=Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd()),
-            open_browser=os.environ.get("LEMMA_OPEN_BROWSER", "").lower() != "false",
+            open_browser=open_browser,
             default_model=default_model,
             default_machine=default_machine,
             mistyped_model=mistyped(typed_model, default_model),
@@ -275,7 +319,47 @@ class App:
                 Path(p) for p in os.environ.get("LEMMA_ALLOWED_DIRS", "").split(os.pathsep) if p
             ),
             background_wait=os.environ.get("LEMMA_HARNESS", "").strip().lower() == "antigravity",
+            settings_dir=settings_dir,
         )
+
+    def settings(self) -> dict[str, Any]:
+        info: dict[str, Any] = {
+            "open_browser": self.open_browser,
+            "default_model": MODEL_LABELS.get(self.default_model, "Lemma's default")
+            if self.default_model is not None
+            else "Lemma's default",
+            "default_machine": MACHINE_LABELS.get(self.default_machine, "Standard")
+            if self.default_machine is not None
+            else "Standard",
+            "config_path": str(self.settings_dir / CONFIG_FILENAME) if self.settings_dir else None,
+        }
+        overrides = [name for name in SETTING_ENV_VARS if os.environ.get(name)]
+        if overrides:
+            info["env_overrides"] = overrides
+        return info
+
+    def configure(
+        self,
+        *,
+        open_browser: bool | None = None,
+        default_model: DefaultModel | None = None,
+        default_machine: DefaultMachine | None = None,
+    ) -> dict[str, Any]:
+        updates: dict[str, Any] = {}
+        if open_browser is not None:
+            self.open_browser = open_browser
+            updates["open_browser"] = open_browser
+        if default_model is not None:
+            self.default_model = MODEL_CHOICES.get(default_model)
+            self.mistyped_model = None
+            updates["default_model"] = default_model
+        if default_machine is not None:
+            self.default_machine = MACHINE_CHOICES.get(default_machine)
+            self.mistyped_machine = None
+            updates["default_machine"] = default_machine
+        if updates and self.settings_dir is not None:
+            save_settings(self.settings_dir, updates)
+        return self.settings()
 
     def starting(
         self, model: str | None, provider: str | None, machine: str | None
@@ -767,6 +851,18 @@ def build_server(app: App) -> MCPServer:
         browser could be opened: give the user url instead."""
         url = app.target.conversation_url(conversation_id)
         return {"opened": webbrowser.open(url), "url": url}
+
+    @tool(description=CONFIGURE)
+    async def configure(
+        open_browser: bool | None = None,
+        default_model: DefaultModel | None = None,
+        default_machine: DefaultMachine | None = None,
+    ) -> dict[str, Any]:
+        return app.configure(
+            open_browser=open_browser,
+            default_model=default_model,
+            default_machine=default_machine,
+        )
 
     @tool()
     async def login() -> str:

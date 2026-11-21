@@ -2,7 +2,7 @@ import json
 import tomllib
 from pathlib import Path
 
-from lemma_mcp.config import TARGET, data_dir
+from lemma_mcp.config import TARGET, data_dir, load_settings, save_settings
 
 PLUGIN = Path(__file__).parents[2]
 
@@ -26,3 +26,14 @@ def test_the_manifests_and_the_package_carry_the_same_version():
     for folder in (".claude-plugin", ".antigravity-plugin"):
         manifest = json.loads((PLUGIN / folder / "plugin.json").read_text())
         assert manifest["version"] == project["project"]["version"]
+
+
+def test_settings_merge_persist_and_ignore_missing_or_corrupt_file(tmp_path: Path):
+    assert load_settings(tmp_path) == {}
+
+    save_settings(tmp_path, {"open_browser": False})
+    save_settings(tmp_path, {"default_machine": "GPU"})
+    assert load_settings(tmp_path) == {"open_browser": False, "default_machine": "GPU"}
+
+    (tmp_path / "config.json").write_text("{not json", encoding="utf-8")
+    assert load_settings(tmp_path) == {}

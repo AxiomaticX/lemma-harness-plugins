@@ -863,3 +863,67 @@ async def test_claude_mode_wait_for_result_uses_foreground_timeout(
     )
 
     assert seen == [600, 0]
+
+
+async def test_configure_persists_settings_and_applies_them_live(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    for name in ("LEMMA_OPEN_BROWSER", "LEMMA_DEFAULT_MODEL", "LEMMA_DEFAULT_MACHINE"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+
+    loaded = App.from_env()
+    server = build_server(loaded)
+
+    initial = _structured(await server.call_tool("configure", {}))
+    assert initial == {
+        "open_browser": True,
+        "default_model": "Lemma's default",
+        "default_machine": "Standard",
+        "config_path": str(tmp_path / "config.json"),
+    }
+    assert not (tmp_path / "config.json").exists()
+
+    updated = _structured(
+        await server.call_tool(
+            "configure",
+            {"open_browser": False, "default_model": "Anthropic · Pro", "default_machine": "GPU"},
+        )
+    )
+    assert updated == {
+        "open_browser": False,
+        "default_model": "Anthropic · Pro",
+        "default_machine": "GPU",
+        "config_path": str(tmp_path / "config.json"),
+    }
+
+    reloaded = App.from_env()
+    assert reloaded.open_browser is False
+    assert reloaded.default_model == ("anthropic", "pro")
+    assert reloaded.default_machine == "gpu"
+
+    reset_model = _structured(
+        await server.call_tool("configure", {"default_model": "Lemma's default"})
+    )
+    assert reset_model["default_model"] == "Lemma's default"
+    assert loaded.default_model is None
+    assert App.from_env().mistyped_model is None
+
+
+async def test_env_vars_override_saved_config_and_configure_reports_them(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    (tmp_path / "config.json").write_text(
+        json.dumps({"open_browser": False, "default_machine": "GPU"}), encoding="utf-8"
+    )
+    monkeypatch.setenv("LEMMA_DEFAULT_MACHINE", "Max")
+    monkeypatch.delenv("LEMMA_OPEN_BROWSER", raising=False)
+    monkeypatch.delenv("LEMMA_DEFAULT_MODEL", raising=False)
+
+    loaded = App.from_env()
+    assert loaded.default_machine == "max"
+    assert loaded.open_browser is False
+
+    shown = _structured(await build_server(loaded).call_tool("configure", {}))
+    assert shown["env_overrides"] == ["LEMMA_DEFAULT_MACHINE"]
