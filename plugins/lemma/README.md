@@ -1,7 +1,7 @@
 # Lemma for Claude Code
 
-[Lemma](https://lemma.axiomatic.ai) is [Axiomatic AI](https://axiomatic.ai)'s agent for research, engineering, and
-scientific computing. It works on its own machine, with its own tools, and keeps a record of
+[Lemma](https://lemma.axiomatic.ai) is [Axiomatic AI](https://axiomatic.ai)'s agent for research and
+computing in science and engineering. It works on its own machine, with its own tools, and keeps a record of
 every step in a session you can open in the browser.
 
 This plugin lets Claude Code hand work to Lemma. From Claude Code you can start a Lemma session,
