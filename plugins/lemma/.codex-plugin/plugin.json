@@ -1,0 +1,31 @@
+{
+  "name": "lemma",
+  "version": "0.7.1",
+  "description": "Hand science and engineering work to Lemma: start a session or find and read an earlier one, send files, wait for the run, read the answer, download results, and open it in the browser.",
+  "skills": "./skills/",
+  "hooks": {
+    "hooks": {}
+  },
+  "mcpServers": {
+    "handoff": {
+      "command": "uv",
+      "args": ["run", "--frozen", "--no-dev", "--quiet", "--project", "./server", "lemma-mcp"],
+      "cwd": ".",
+      "env": {
+        "LEMMA_HARNESS": "codex"
+      },
+      "env_vars": [
+        "LEMMA_OPEN_BROWSER",
+        "LEMMA_DEFAULT_MODEL",
+        "LEMMA_DEFAULT_MACHINE",
+        "LEMMA_MAX_TOOL_OUTPUT_CHARS",
+        "LEMMA_ALLOWED_DIRS",
+        "DBUS_SESSION_BUS_ADDRESS",
+        "XDG_RUNTIME_DIR",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "BROWSER"
+      ]
+    }
+  }
+}

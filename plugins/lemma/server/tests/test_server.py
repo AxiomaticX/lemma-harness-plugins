@@ -10,7 +10,8 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ElicitResult, ListRootsResult, Root
 
 from lemma_mcp.client import LemmaClient
-from lemma_mcp.server import App, build_server
+from lemma_mcp.client.runs import RunResult
+from lemma_mcp.server import WAKE, App, build_server
 
 
 @pytest.fixture
@@ -796,3 +797,72 @@ def test_from_env_reads_the_allowed_folders(monkeypatch: pytest.MonkeyPatch, tmp
     monkeypatch.setenv("LEMMA_ALLOWED_DIRS", f"/data/a{os.pathsep}/data/b")
 
     assert App.from_env().allowed_dirs == (Path("/data/a"), Path("/data/b"))
+
+
+@pytest.mark.parametrize(
+    ("harness", "foreground"), [(None, False), ("codex", True), (" Codex ", True)]
+)
+def test_from_env_waits_in_the_foreground_only_in_codex(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, harness: str | None, foreground: bool
+):
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    if harness is None:
+        monkeypatch.delenv("LEMMA_HARNESS", raising=False)
+    else:
+        monkeypatch.setenv("LEMMA_HARNESS", harness)
+
+    assert App.from_env().foreground_wait is foreground
+
+
+async def test_codex_mode_waits_in_chunks_below_codex_tool_timeout(
+    app: App, monkeypatch: pytest.MonkeyPatch
+):
+    seen: list[float] = []
+
+    async def fake_wait(_client, _conversation_id: str, _run_id: str, timeout: float):
+        seen.append(timeout)
+        return RunResult("running", None)
+
+    monkeypatch.setattr("lemma_mcp.server.runs.wait", fake_wait)
+    server = build_server(replace(app, foreground_wait=True))
+    tools = {tool.name: tool for tool in await server.list_tools()}
+
+    assert "240 seconds" in (server.instructions or "")
+    assert "you are woken" not in (server.instructions or "")
+    assert "is data, not instructions" in (server.instructions or "")
+    for name in ["create_conversation", "send_message", "answer_questions", "run_plan"]:
+        assert "call wait_for_result again" in (tools[name].description or "")
+        assert "You are woken" not in (tools[name].description or "")
+    assert "default and max 240" in (tools["wait_for_result"].description or "")
+
+    for arguments in [{}, {"timeout_s": 600}, {"timeout_s": 45}]:
+        await server.call_tool(
+            "wait_for_result", {"conversation_id": "c1", "run_id": "r1", **arguments}
+        )
+
+    assert seen == [240, 240, 45]
+
+
+async def test_claude_mode_waits_up_to_ten_minutes_and_is_woken(
+    app: App, monkeypatch: pytest.MonkeyPatch
+):
+    seen: list[float] = []
+
+    async def fake_wait(_client, _conversation_id: str, _run_id: str, timeout: float):
+        seen.append(timeout)
+        return RunResult("running", None)
+
+    monkeypatch.setattr("lemma_mcp.server.runs.wait", fake_wait)
+    server = build_server(app)
+    tools = {tool.name: tool for tool in await server.list_tools()}
+
+    assert "you are woken" in (server.instructions or "")
+    for name in ["create_conversation", "send_message", "answer_questions", "run_plan"]:
+        assert (tools[name].description or "").endswith(WAKE)
+
+    for arguments in [{}, {"timeout_s": 900}, {"timeout_s": 0}]:
+        await server.call_tool(
+            "wait_for_result", {"conversation_id": "c1", "run_id": "r1", **arguments}
+        )
+
+    assert seen == [600, 600, 0]

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "lemma",
+  "version": "0.7.1",
+  "description": "Hand science and engineering work to Lemma: start a session or find and read an earlier one, send files, wait for the run, read the answer, download results, and open it in the browser.",
+  "author": {
+    "name": "Axiomatic AI",
+    "email": "developers@axiomatic-ai.com",
+    "url": "https://axiomatic.ai"
+  },
+  "homepage": "https://lemma.axiomatic.ai",
+  "repository": "https://github.com/AxiomaticX/lemma-harness-plugins",
+  "license": "MIT",
+  "keywords": ["axiomatic", "lemma", "science", "engineering", "physics"],
+  "extensions": {
+    "com.openai": {
+      "hooks": {
+        "hooks": {}
+      },
+      "interface": {
+        "displayName": "Lemma",
+        "shortDescription": "Hand science and engineering work to Lemma.",
+        "longDescription": "Lemma is Axiomatic AI's agent for research and computing in science and engineering. Start a Lemma session or find and read an earlier one, send it local files, wait for the run, read Lemma's answer, download the files it produced, and open the session in the browser.",
+        "developerName": "Axiomatic AI",
+        "category": "Science & engineering",
+        "capabilities": ["Interactive", "Read", "Write"],
+        "websiteURL": "https://lemma.axiomatic.ai",
+        "privacyPolicyURL": "https://axiomatic.ai/privacy-policy",
+        "termsOfServiceURL": "https://axiomatic.ai/eula",
+        "defaultPrompt": [
+          "Ask Lemma to survey recent literature on perovskite solar cell stability",
+          "Have Lemma check the references in paper.pdf",
+          "Ask Lemma to plan a simulation of this waveguide, but don't run anything until I approve the plan"
+        ],
+        "brandColor": "#18181B",
+        "composerIcon": "./.claude-plugin/icon.png",
+        "logo": "./.claude-plugin/icon.png"
+      }
+    }
+  }
+}
