@@ -9,6 +9,9 @@
   },
   "keywords": ["axiomatic", "lemma"],
   "icon": "./.claude-plugin/icon.png",
+  "documentationUrl": "https://github.com/AxiomaticX/lemma-harness-plugins#readme",
+  "privacyPolicyUrl": "https://axiomatic.ai/privacy-policy",
+  "termsOfServiceUrl": "https://axiomatic.ai/eula",
   "userConfig": {
     "open_browser": {
       "type": "boolean",
