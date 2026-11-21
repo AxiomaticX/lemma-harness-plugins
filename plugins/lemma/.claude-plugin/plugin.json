@@ -11,6 +11,7 @@
   "icon": "./.claude-plugin/icon.png",
   "license": "MIT",
   "documentationUrl": "https://github.com/AxiomaticX/lemma-harness-plugins/tree/main/plugins/lemma#readme",
+  "supportUrl": "https://github.com/AxiomaticX/lemma-harness-plugins/issues",
   "privacyPolicyUrl": "https://axiomatic.ai/privacy-policy",
   "termsOfServiceUrl": "https://axiomatic.ai/eula",
   "userConfig": {
