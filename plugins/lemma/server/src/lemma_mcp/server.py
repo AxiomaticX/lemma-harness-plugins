@@ -66,7 +66,7 @@ CREATE_CONVERSATION = (
 )
 SEND_MESSAGE = (
     "Send the next message in a Lemma conversation. Passing mode, model or provider changes "
-    "the conversation's setting for this and later turns; leave them out to keep the current "
+    "the conversation's settings for this and later turns; leave them out to keep the current "
     "ones. Pass files as local file paths; they are uploaded into the conversation first. "
     "Returns at once with the run id. " + WAKE
 )
@@ -76,7 +76,7 @@ WAIT_FOR_RESULT = (
     "waiting_for_input (questions holds what Lemma needs decided: ask the user, then call "
     "answer_questions); or no_answer (the run ended without a reply: give the user the url). "
     "If the run is still going, you are woken when it ends or after wake_after_minutes, as "
-    "for send_message; pass timeout_s=0 only to set up that wake-up."
+    "for send_message. Pass timeout_s=0 to skip the wait and only set up that wake-up."
 )
 ANSWER_QUESTIONS = (
     "Answer the questions a run stopped on: one entry per question, each with the question's "
@@ -99,19 +99,19 @@ EDIT_PLAN = (
 )
 DELETE_TASK = (
     "Delete a task from the plan, along with the tasks that depend on it unless "
-    "keep_dependents is true. Act only on the user's decision."
+    "keep_dependents is true. Do this only as the user decided."
 )
 REOPEN_TASK = (
     "Reopen a task and every task that depends on it, discarding their results, so the next "
-    "run_plan does them again. Act only on the user's decision."
+    "run_plan does them again. Do this only as the user decided."
 )
 SET_TASK_CHECKS = (
     "Turn a task's checks off (enabled false), so it runs without them and its result is "
-    "unverified, or turn them back on. Act only on the user's decision."
+    "unverified, or turn them back on. Do this only as the user decided."
 )
 RESTORE_PLAN_REVISION = (
     "Make an earlier revision (see list_plan_revisions) the current plan again. It must be "
-    "approved again. Act only on the user's decision."
+    "approved again. Do this only as the user decided."
 )
 ANSWER_PLAN = (
     "Answer the plan's questions as a map of question id to answer, and set approve to true "
@@ -120,7 +120,7 @@ ANSWER_PLAN = (
 )
 REVIEW_TASK = (
     "Decide on a finished task that is waiting for review: approve, disapprove or waive it, "
-    "with a reason. Act only on the user's decision."
+    "with a reason. Do this only as the user decided."
 )
 RUN_PLAN = (
     "Run an approved plan: set scope to next to run its next task, or to all to run every "
@@ -420,6 +420,7 @@ def build_server(app: App) -> MCPServer:
         reads, and its output is held to the cap, with output_file for the rest."""
 
         def register(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[str]]:
+            text = " ".join((description or fn.__doc__ or "").split())
             if not capped:
 
                 @functools.wraps(fn)
@@ -427,7 +428,7 @@ def build_server(app: App) -> MCPServer:
                     return as_text(await reported(fn, *args, **kwargs))
 
                 plain.__signature__ = inspect.signature(fn).replace(return_annotation=str)
-                return server.tool(description=description, structured_output=False)(plain)
+                return server.tool(description=text, structured_output=False)(plain)
 
             @functools.wraps(fn)
             async def call(*args: Any, output_file: str | None = None, **kwargs: Any) -> str:
@@ -445,7 +446,7 @@ def build_server(app: App) -> MCPServer:
             call.__signature__ = signature.replace(
                 parameters=[*signature.parameters.values(), output_file], return_annotation=str
             )
-            return server.tool(description=description, structured_output=False)(call)
+            return server.tool(description=text, structured_output=False)(call)
 
         return register
 
@@ -627,8 +628,8 @@ def build_server(app: App) -> MCPServer:
 
     @tool()
     async def delete_plan(conversation_id: Id) -> str:
-        """Delete a conversation's plan; the files its tasks produced are kept. Act only on the
-        user's decision."""
+        """Delete a conversation's plan; the files its tasks produced are kept. Do this only as
+        the user decided."""
         await plan.delete(app.client, conversation_id)
         return "Deleted the plan."
 

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from dataclasses import replace
 from pathlib import Path
 
@@ -796,3 +797,13 @@ def test_from_env_reads_the_allowed_folders(monkeypatch: pytest.MonkeyPatch, tmp
     monkeypatch.setenv("LEMMA_ALLOWED_DIRS", f"/data/a{os.pathsep}/data/b")
 
     assert App.from_env().allowed_dirs == (Path("/data/a"), Path("/data/b"))
+
+
+async def test_every_tool_description_is_single_spaced_and_starts_each_sentence_with_a_capital(
+    app: App,
+):
+    for tool in await build_server(app).list_tools():
+        description = tool.description or ""
+        assert description == " ".join(description.split()), tool.name
+        for sentence in re.split(r"(?<=[.?!])\s+", description):
+            assert sentence[:1].isupper(), (tool.name, sentence)

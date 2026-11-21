@@ -58,7 +58,8 @@ async def result(client: LemmaClient, conversation_id: str, run_id: str) -> RunR
 async def answer(
     client: LemmaClient, conversation_id: str, run_id: str, answers: list[dict[str, Any]]
 ) -> str:
-    """Answer what a run stopped on; the conversation goes on in the new run whose id comes back."""
+    """Answer the questions a run stopped on; the conversation continues in a new run, whose id
+    is returned."""
     response = await client.request(
         "POST",
         f"/conversations/{conversation_id}/runs/{run_id}/answers",
