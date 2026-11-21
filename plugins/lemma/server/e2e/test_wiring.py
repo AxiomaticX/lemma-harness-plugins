@@ -2,9 +2,11 @@
 
 import json
 import re
+from pathlib import Path
 
+import pytest
 from mcp import Client
-from plugin_files import WAKE_HOOK, run_wake_hook, server_params, tool_name
+from plugin_files import WAKE_HOOK, clean_copy, run_wake_hook, server_params, tool_name
 
 from lemma_mcp import wake
 
@@ -47,8 +49,14 @@ RUN_STARTING = {
 }
 
 
-async def test_the_server_started_from_mcp_json_lists_the_tools(tmp_path):
-    async with Client(server_params(tmp_path)) as client:
+@pytest.fixture(scope="module")
+def plugin_root(tmp_path_factory) -> Path:
+    """The plugin in a clean copy of this checkout, with no .venv of its own yet."""
+    return clean_copy(tmp_path_factory.mktemp("checkout"))
+
+
+async def test_the_server_started_from_mcp_json_lists_the_tools(plugin_root, tmp_path):
+    async with Client(server_params(plugin_root, tmp_path)) as client:
         listed = {tool.name for tool in (await client.list_tools()).tools}
 
     assert listed == TOOLS
@@ -71,21 +79,21 @@ def _event(tool: str, tool_input: dict, result: dict) -> dict:
     }
 
 
-def test_the_wake_hook_follows_a_run_claude_started_and_wakes_claude(tmp_path):
+def test_the_wake_hook_follows_a_run_claude_started_and_wakes_claude(plugin_root, tmp_path):
     started = {"conversation_id": "c1", "run_id": "r1", "url": "https://lemma.test/c1"}
     event = _event("create_conversation", {"content": "go", "mode": "act"}, started)
 
-    done = run_wake_hook(event, tmp_path)
+    done = run_wake_hook(event, plugin_root, tmp_path)
 
     # With no token it can't follow the run, so it wakes Claude at once to say why.
     assert done.returncode == wake.WAKE_CLAUDE, done.stderr
     assert done.stdout.startswith("Stopped waiting for Lemma run r1 in conversation c1:"), done
 
 
-def test_the_wake_hook_stays_quiet_when_the_run_already_ended(tmp_path):
+def test_the_wake_hook_stays_quiet_when_the_run_already_ended(plugin_root, tmp_path):
     ended = {"outcome": "answered", "answer": "42", "questions": [], "url": "https://lemma.test"}
     event = _event("wait_for_result", {"conversation_id": "c1", "run_id": "r1"}, ended)
 
-    done = run_wake_hook(event, tmp_path)
+    done = run_wake_hook(event, plugin_root, tmp_path)
 
     assert (done.returncode, done.stdout) == (0, ""), done.stderr

@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from plugin_files import PLUGIN_NAME, PLUGIN_ROOT, REPO_ROOT, SERVER_NAME
+from plugin_files import PLUGIN_NAME, PLUGIN_ROOT, REPO_ROOT, SERVER_NAME, clean_copy
 
 MARKETPLACE = "axiomatic-ai"
 INSTALLED = f"{PLUGIN_NAME}@{MARKETPLACE}"
@@ -25,12 +25,14 @@ def claude(*args: str, cwd: Path, config_dir: Path) -> str:
 
 @pytest.fixture(scope="module")
 def project(tmp_path_factory) -> tuple[Path, Path]:
-    """A new project with this checkout added as a marketplace and the plugin installed in it."""
+    """A new project with a clean copy of this checkout added as a marketplace and the plugin
+    installed in it. Claude Code starts the server from that copy."""
     root = tmp_path_factory.mktemp("install")
-    project, config = root / "project", root / "config"
+    project, config, marketplace = root / "project", root / "config", root / "marketplace"
     project.mkdir()
+    clean_copy(marketplace)
     subprocess.run(["git", "init", "-q"], cwd=project, check=True)
-    claude("plugin", "marketplace", "add", str(REPO_ROOT), "--scope", "project",
+    claude("plugin", "marketplace", "add", str(marketplace), "--scope", "project",
            cwd=project, config_dir=config)  # fmt: skip
     claude("plugin", "install", INSTALLED, "--scope", "project", cwd=project, config_dir=config)
     return project, config

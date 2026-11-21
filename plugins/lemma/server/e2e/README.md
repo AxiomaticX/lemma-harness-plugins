@@ -16,6 +16,9 @@ uv run pytest e2e
   is fed the event Claude Code sends after `create_conversation` and wakes Claude; it runs with
   a keyring that holds no Lemma token, so it never signs in.
 
+Both run the plugin from a copy of this checkout without its `.venv`, so the server and hook
+build the same environment a user gets, without the dev packages.
+
 CI runs both on every pull request (`.github/workflows/tests.yml`).
 
 ## Before a release, check by hand
