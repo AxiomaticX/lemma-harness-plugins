@@ -9,7 +9,8 @@
   },
   "keywords": ["axiomatic", "lemma"],
   "icon": "./.claude-plugin/icon.png",
-  "documentationUrl": "https://github.com/AxiomaticX/lemma-harness-plugins#readme",
+  "license": "MIT",
+  "documentationUrl": "https://github.com/AxiomaticX/lemma-harness-plugins/tree/main/plugins/lemma#readme",
   "privacyPolicyUrl": "https://axiomatic.ai/privacy-policy",
   "termsOfServiceUrl": "https://axiomatic.ai/eula",
   "userConfig": {

@@ -6,8 +6,9 @@ show in Claude Code as `lemma:handoff`.
 
 ## What the plugin contains
 
-- `.mcp.json`: a local stdio MCP server, run with `uv` from `server/`. Its virtualenv lives in
-  the plugin's data directory, so plugin updates don't rebuild it in place.
+- `.mcp.json`: a local stdio MCP server, run with `uv` from `server/`.
+- `README.md` and `LICENSE`: the user guide and license the plugin directory reads from this
+  folder.
 - `hooks/hooks.json`: after `send_message` or a `wait_for_result` that found the run still going,
   a background hook waits on the run and wakes Claude when it ends, or after
   `wake_after_minutes` (60 by default) to say it is still running. Nothing runs while Lemma is
