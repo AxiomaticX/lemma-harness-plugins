@@ -1,5 +1,5 @@
 ---
-name: lemma
+name: handoff
 description: Hand a research, engineering or scientific computing task to Lemma, Axiomatic's agent, and bring its answer and result files back. Use when the user asks for Lemma, or wants a task done in Lemma and continued in the browser.
 ---
 
@@ -15,6 +15,8 @@ The user sees none of what these tools return, and none of the wake-ups that tel
 ended. Everything they learn about Lemma comes from what you tell them.
 
 - When you send a message, say what you asked Lemma to do and give them `url`.
+- When a result has `settings_note`, one of the user's plugin settings did not match any value.
+  Pass the note on as it is.
 - When a run ends, tell them its outcome and what Lemma answered, in your own words.
 - When a call fails, pass Lemma's message on as it is, such as a model it refused, a plan that
   has run out, or a conversation that is busy, before you decide what to do next. Never retry

@@ -33,6 +33,129 @@ def test_conversations_open_in_the_browser_unless_turned_off(
     assert App.from_env().open_browser is opens
 
 
+@pytest.mark.parametrize(
+    ("model", "machine", "expected_model", "expected_machine"),
+    [
+        ("Anthropic · Pro", "High performance", ("anthropic", "pro"), "high_performance"),
+        ("anthropic pro fast", "gpu", ("anthropic", "pro_fast"), "gpu"),
+        ("  OPEN-WEIGHT normal ", "high-performance", ("open", "normal"), "high_performance"),
+        ("Openweight Pro", "highperformance", ("open", "pro"), "high_performance"),
+        ("Lemma's default", "Standard", None, "standard"),
+        ("", "", None, None),
+        ("Anthropic Ultra", "huge", None, None),
+    ],
+)
+def test_default_model_and_machine_ignore_case_and_punctuation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    model: str,
+    machine: str,
+    expected_model: tuple[str, str] | None,
+    expected_machine: str | None,
+):
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("LEMMA_DEFAULT_MODEL", model)
+    monkeypatch.setenv("LEMMA_DEFAULT_MACHINE", machine)
+
+    app = App.from_env()
+
+    assert app.default_model == expected_model
+    assert app.default_machine == expected_machine
+
+
+def _env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **settings: str) -> None:
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    for name, value in settings.items():
+        monkeypatch.setenv(f"LEMMA_{name.upper()}", value)
+
+
+async def test_a_default_that_matches_nothing_is_reported_when_a_session_starts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, client: LemmaClient, api
+):
+    _env(monkeypatch, tmp_path, default_model="Antropic Pro", default_machine="Stnadard")
+    api.post(url__regex=r"https://api.test/conversations/[^/]+/messages").mock(
+        return_value=httpx.Response(202, json={"active": True, "run_id": "r1", "started_at": None})
+    )
+    app = replace(App.from_env(), target=client.target, client=client, open_browser=False)
+    server = build_server(app)
+
+    first = _structured(
+        await server.call_tool("create_conversation", {"content": "go", "mode": "act"})
+    )
+    workflow = _structured(await server.call_tool("start_workflow", {"name": "survey"}))
+
+    assert "'Antropic Pro'" in first["settings_note"]
+    assert "'Stnadard'" in first["settings_note"]
+    assert workflow["settings_note"] == first["settings_note"]
+
+
+async def _start(monkeypatch, tmp_path, client, api, arguments: dict, **settings: str) -> dict:
+    _env(monkeypatch, tmp_path, **settings)
+    api.post(url__regex=r"https://api.test/conversations/[^/]+/messages").mock(
+        return_value=httpx.Response(202, json={"active": True, "run_id": "r1", "started_at": None})
+    )
+    app = replace(App.from_env(), target=client.target, client=client, open_browser=False)
+    started = await build_server(app).call_tool(
+        "create_conversation", {"content": "go", "mode": "act", **arguments}
+    )
+    return _structured(started)
+
+
+async def test_no_settings_note_when_the_request_names_the_model_and_machine(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, client: LemmaClient, api
+):
+    started = await _start(
+        monkeypatch,
+        tmp_path,
+        client,
+        api,
+        {"model": "pro", "provider": "anthropic", "machine": "gpu"},
+        default_model="Antropic Pro",
+        default_machine="Stnadard",
+    )
+
+    assert "settings_note" not in started
+
+
+async def test_the_settings_note_names_only_the_mistyped_default_that_was_used(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, client: LemmaClient, api
+):
+    started = await _start(
+        monkeypatch,
+        tmp_path,
+        client,
+        api,
+        {"machine": "gpu"},
+        default_model="Antropic Pro",
+        default_machine="Stnadard",
+    )
+
+    assert "'Antropic Pro'" in started["settings_note"]
+    assert "Stnadard" not in started["settings_note"]
+
+
+@pytest.mark.parametrize("typed", ["Lemma's default", "lemma default", "Default", ""])
+async def test_asking_for_lemmas_default_is_not_a_mistyped_setting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, client: LemmaClient, api, typed: str
+):
+    started = await _start(
+        monkeypatch, tmp_path, client, api, {}, default_model=typed, default_machine=typed
+    )
+
+    assert "settings_note" not in started
+
+
+async def test_no_settings_note_when_the_defaults_match(app: App, api):
+    api.post(url__regex=r"https://api.test/conversations/[^/]+/messages").mock(
+        return_value=httpx.Response(202, json={"active": True, "run_id": "r1", "started_at": None})
+    )
+    started = _structured(
+        await build_server(app).call_tool("create_conversation", {"content": "go", "mode": "act"})
+    )
+
+    assert "settings_note" not in started
+
+
 async def test_only_a_new_conversation_opens_in_the_browser(
     app: App, api, monkeypatch: pytest.MonkeyPatch
 ):

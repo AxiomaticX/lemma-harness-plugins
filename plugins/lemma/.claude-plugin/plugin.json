@@ -1,0 +1,38 @@
+{
+  "name": "lemma",
+  "displayName": "Lemma",
+  "version": "0.7.0",
+  "description": "Hand engineering and science work to Lemma: start a session or find and read an earlier one, send files, wait for the run, read the answer, download results, and open it in the browser.",
+  "author": {
+    "name": "Axiomatic AI",
+    "email": "developers@axiomatic-ai.com"
+  },
+  "keywords": ["axiomatic", "lemma"],
+  "icon": "./.claude-plugin/icon.png",
+  "userConfig": {
+    "open_browser": {
+      "type": "boolean",
+      "title": "Open sessions in the browser",
+      "description": "Open each new session in your browser as soon as a message is sent.",
+      "default": true
+    },
+    "default_model": {
+      "type": "string",
+      "title": "Default model",
+      "description": "The model a new session starts on when Claude names none. Type one of: Lemma's default, Anthropic Pro Fast, Anthropic Pro, Anthropic Normal, Google Pro, Google Normal, Open-weight Pro, or Open-weight Normal. Lemma's default is the model Lemma would use in the browser.",
+      "default": "Lemma's default"
+    },
+    "default_machine": {
+      "type": "string",
+      "title": "Default machine",
+      "description": "The machine a new session runs on when Claude names none. Type one of: Standard, Enhanced, High performance, Max, or GPU.",
+      "default": "Standard"
+    },
+    "max_tool_output_chars": {
+      "type": "number",
+      "title": "Tool output cap",
+      "description": "The most characters the tools that read sessions, plans and results return to Claude. A longer result is cut, and Claude can save the whole of it to a file instead.",
+      "default": 40000
+    }
+  }
+}

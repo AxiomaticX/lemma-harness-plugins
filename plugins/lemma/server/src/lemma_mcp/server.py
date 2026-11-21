@@ -18,7 +18,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from .auth import Session
 from .client import LemmaClient, conversations, options, plan, runs
 from .client import files as remote_files
-from .config import Target, target
+from .config import TARGET, Target, choice_key, find_choice
 from .errors import LemmaError
 
 MAX_WAIT_SECONDS = 600
@@ -187,6 +187,8 @@ MACHINE_CHOICES: dict[str, str] = {
     "Max": "max",
     "GPU": "gpu",
 }
+MEANS_LEMMAS_DEFAULT = {"", "lemmasdefault", "lemmadefault", "default"}
+FIX_SETTINGS = "Change it with /plugin configure lemma@axiomatic-ai, then run /reload-plugins."
 
 
 def _max_output_chars(raw: str | None) -> int:
@@ -207,18 +209,31 @@ class App:
     default_model: tuple[str, str] | None = None
     default_machine: str | None = None
     max_output_chars: int = DEFAULT_MAX_OUTPUT_CHARS
+    mistyped_model: str | None = None
+    mistyped_machine: str | None = None
 
     @classmethod
     def from_env(cls) -> "App":
         data_dir = Path(os.environ.get("LEMMA_DATA_DIR") or Path.home() / ".lemma-mcp")
-        lemma = target(None)
+        typed_model = os.environ.get("LEMMA_DEFAULT_MODEL", "")
+        typed_machine = os.environ.get("LEMMA_DEFAULT_MACHINE", "")
+        default_model = find_choice(MODEL_CHOICES, typed_model)
+        default_machine = find_choice(MACHINE_CHOICES, typed_machine)
+
+        def mistyped(typed: str, found: object) -> str | None:
+            return (
+                typed if found is None and choice_key(typed) not in MEANS_LEMMAS_DEFAULT else None
+            )
+
         return cls(
-            target=lemma,
-            client=LemmaClient(Session(lemma, data_dir)),
+            target=TARGET,
+            client=LemmaClient(Session(TARGET, data_dir)),
             project_dir=Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd()),
             open_browser=os.environ.get("LEMMA_OPEN_BROWSER", "").lower() != "false",
-            default_model=MODEL_CHOICES.get(os.environ.get("LEMMA_DEFAULT_MODEL", "")),
-            default_machine=MACHINE_CHOICES.get(os.environ.get("LEMMA_DEFAULT_MACHINE", "")),
+            default_model=default_model,
+            default_machine=default_machine,
+            mistyped_model=mistyped(typed_model, default_model),
+            mistyped_machine=mistyped(typed_machine, default_machine),
             max_output_chars=_max_output_chars(os.environ.get("LEMMA_MAX_TOOL_OUTPUT_CHARS")),
         )
 
@@ -234,6 +249,21 @@ class App:
             "provider": provider,
             "sandbox_type": machine or self.default_machine,
         }
+
+    def settings_note(self, model: str | None, machine: str | None) -> str | None:
+        """Which mistyped default a new conversation fell back on, if it used one."""
+        ignored = []
+        if self.mistyped_model is not None and model is None:
+            ignored.append(
+                f"default model {self.mistyped_model!r}, so Lemma's default model was used"
+            )
+        if self.mistyped_machine is not None and machine is None:
+            ignored.append(
+                f"default machine {self.mistyped_machine!r}, so Lemma's default machine was used"
+            )
+        if not ignored:
+            return None
+        return f"The plugin did not recognize the {' or the '.join(ignored)}. {FIX_SETTINGS}"
 
     def local_path(self, raw: str) -> Path:
         path = Path(raw).expanduser()
@@ -272,7 +302,7 @@ def as_text(result: Any) -> str:
 
 
 def build_server(app: App) -> MCPServer:
-    server = MCPServer("lemma", instructions=INSTRUCTIONS)
+    server = MCPServer("handoff", instructions=INSTRUCTIONS)
 
     async def reported(fn: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
         try:
@@ -333,6 +363,15 @@ def build_server(app: App) -> MCPServer:
             {**item, "url": app.target.conversation_url(item["conversation_id"])} for item in found
         ]
 
+    def started_new(
+        conversation_id: str, run_id: str, model: str | None, machine: str | None
+    ) -> dict[str, Any]:
+        result = started(conversation_id, run_id)
+        note = app.settings_note(model, machine)
+        if note:
+            result["settings_note"] = note
+        return result
+
     async def send(
         conversation_id: str,
         content: str | None,
@@ -363,7 +402,7 @@ def build_server(app: App) -> MCPServer:
         )
         if app.open_browser:
             webbrowser.open(app.target.conversation_url(conversation_id))
-        return started(conversation_id, run_id)
+        return started_new(conversation_id, run_id, model, machine)
 
     @tool(description=SEND_MESSAGE)
     async def send_message(
@@ -482,7 +521,7 @@ def build_server(app: App) -> MCPServer:
         run_id = await send(conversation_id, None, files, settings)
         if app.open_browser:
             webbrowser.open(app.target.conversation_url(conversation_id))
-        return started(conversation_id, run_id)
+        return started_new(conversation_id, run_id, model, machine)
 
     @tool(description=RUN_PLAN)
     async def run_plan(
