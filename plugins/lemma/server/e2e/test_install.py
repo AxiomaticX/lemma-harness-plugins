@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from conftest import PLUGIN_NAME, PLUGIN_ROOT, REPO_ROOT, SERVER_NAME
+from plugin_files import PLUGIN_NAME, PLUGIN_ROOT, REPO_ROOT, SERVER_NAME
 
 MARKETPLACE = "axiomatic-ai"
 INSTALLED = f"{PLUGIN_NAME}@{MARKETPLACE}"

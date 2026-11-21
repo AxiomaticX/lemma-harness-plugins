@@ -1,9 +1,12 @@
 """The server lists the expected tools, and the wake hook fires on the right ones."""
 
+import json
 import re
 
-from conftest import WAKE_HOOK, run_wake_hook, server_params, tool_name
 from mcp import Client
+from plugin_files import WAKE_HOOK, run_wake_hook, server_params, tool_name
+
+from lemma_mcp import wake
 
 TOOLS = {
     "create_conversation",
@@ -58,13 +61,30 @@ def test_the_wake_hook_matches_exactly_the_tools_that_start_or_wait_on_a_run():
     assert matched == RUN_STARTING
 
 
-def test_the_wake_hook_command_runs_and_stays_quiet_when_there_is_no_run_to_follow(tmp_path):
-    event = {
+def _event(tool: str, tool_input: dict, result: dict) -> dict:
+    """A PostToolUse event as Claude Code sends it for an MCP tool: the result as text blocks."""
+    return {
         "hook_event_name": "PostToolUse",
-        "tool_name": tool_name("wait_for_result"),
-        "tool_input": {"conversation_id": "c1", "run_id": "r1"},
-        "tool_response": {"outcome": "answered"},
+        "tool_name": tool_name(tool),
+        "tool_input": tool_input,
+        "tool_response": [{"type": "text", "text": json.dumps(result)}],
     }
+
+
+def test_the_wake_hook_follows_a_run_claude_started_and_wakes_claude(tmp_path):
+    started = {"conversation_id": "c1", "run_id": "r1", "url": "https://lemma.test/c1"}
+    event = _event("create_conversation", {"content": "go", "mode": "act"}, started)
+
+    done = run_wake_hook(event, tmp_path)
+
+    # With no token it can't follow the run, so it wakes Claude at once to say why.
+    assert done.returncode == wake.WAKE_CLAUDE, done.stderr
+    assert done.stdout.startswith("Stopped waiting for Lemma run r1 in conversation c1:"), done
+
+
+def test_the_wake_hook_stays_quiet_when_the_run_already_ended(tmp_path):
+    ended = {"outcome": "answered", "answer": "42", "questions": [], "url": "https://lemma.test"}
+    event = _event("wait_for_result", {"conversation_id": "c1", "run_id": "r1"}, ended)
 
     done = run_wake_hook(event, tmp_path)
 

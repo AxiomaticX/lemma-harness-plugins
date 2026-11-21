@@ -12,7 +12,9 @@ uv run pytest e2e
   new project, lists its skill and MCP server, and connects to the server. Both manifests pass
   `claude plugin validate`. Needs the `claude` CLI; no sign-in.
 - `test_wiring.py`: the server started as `.mcp.json` starts it lists the expected tools, and the
-  wake hook's matcher catches exactly the tools that start or wait on a run.
+  wake hook's matcher catches exactly the tools that start or wait on a run. The hook command
+  is fed the event Claude Code sends after `create_conversation` and wakes Claude; it runs with
+  a keyring that holds no Lemma token, so it never signs in.
 
 CI runs both on every pull request (`.github/workflows/tests.yml`).
 

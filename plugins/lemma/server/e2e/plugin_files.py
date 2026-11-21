@@ -53,8 +53,11 @@ def server_params(data_dir: Path, **env: str) -> StdioServerParameters:
     )
 
 
-def run_wake_hook(event: dict, data_dir: Path, **env: str) -> subprocess.CompletedProcess[str]:
-    """The PostToolUse command from hooks.json, run as Claude Code runs it, fed one event."""
+def run_wake_hook(event: dict, data_dir: Path) -> subprocess.CompletedProcess[str]:
+    """The PostToolUse command from hooks.json, run as Claude Code runs it, fed one event.
+
+    It sees only PATH and HOME, and a keyring that holds no Lemma token, so it never signs in.
+    """
     (hook,) = WAKE_HOOK["hooks"]
     return subprocess.run(
         hook["command"],
@@ -62,8 +65,12 @@ def run_wake_hook(event: dict, data_dir: Path, **env: str) -> subprocess.Complet
         input=json.dumps(event),
         capture_output=True,
         text=True,
-        timeout=600,
-        env=os.environ
-        | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT), "CLAUDE_PLUGIN_DATA": str(data_dir)}
-        | env,
+        timeout=120,
+        env={
+            "PATH": os.environ["PATH"],
+            "HOME": os.environ["HOME"],
+            "CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT),
+            "LEMMA_DATA_DIR": str(data_dir),
+            "PYTHON_KEYRING_BACKEND": "keyring.backends.null.Keyring",
+        },
     )
