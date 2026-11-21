@@ -4,6 +4,7 @@ persistent plugin settings."""
 import json
 import os
 import re
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -68,8 +69,12 @@ def save_settings(data_dir: Path, updates: dict[str, Any]) -> dict[str, Any]:
     """Merge ``updates`` into ``data_dir/config.json`` atomically and return the stored settings."""
     data_dir.mkdir(parents=True, exist_ok=True)
     merged = {**load_settings(data_dir), **updates}
-    path = data_dir / CONFIG_FILENAME
-    tmp = data_dir / f".{CONFIG_FILENAME}.{os.getpid()}.tmp"
-    tmp.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+    fd, tmp = tempfile.mkstemp(dir=data_dir, prefix=f".{CONFIG_FILENAME}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(merged, indent=2) + "\n")
+        os.replace(tmp, data_dir / CONFIG_FILENAME)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
     return merged
