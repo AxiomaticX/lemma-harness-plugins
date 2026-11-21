@@ -24,6 +24,7 @@ All file transfer goes through `server/src/lemma_mcp/client/files.py`.
 cd plugins/lemma/server
 uv sync
 uv run pytest
+uv run pytest e2e   # install and wiring checks, see e2e/README.md
 uv run ruff check . && uv run ruff format --check .
 ```
 
