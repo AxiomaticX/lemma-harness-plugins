@@ -7,7 +7,7 @@
     "name": "Axiomatic AI",
     "email": "developers@axiomatic-ai.com"
   },
-  "keywords": ["axiomatic", "lemma"],
+  "keywords": ["axiomatic", "lemma", "engineering", "science", "physics"],
   "icon": "./.claude-plugin/icon.png",
   "license": "MIT",
   "documentationUrl": "https://github.com/AxiomaticX/lemma-harness-plugins/tree/main/plugins/lemma#readme",

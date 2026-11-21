@@ -9,7 +9,8 @@
     {
       "name": "lemma",
       "source": "./plugins/lemma",
-      "category": "engineering"
+      "category": "Engineering",
+      "tags": ["Engineering", "Science", "Physics"]
     }
   ]
 }
