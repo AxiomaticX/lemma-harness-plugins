@@ -5,7 +5,8 @@
   "description": "Hand science and engineering work to Lemma: start a session or find and read an earlier one, send files, wait for the run, read the answer, download results, and open it in the browser.",
   "author": {
     "name": "Axiomatic AI",
-    "email": "developers@axiomatic-ai.com"
+    "email": "developers@axiomatic-ai.com",
+    "url": "https://axiomatic.ai"
   },
   "keywords": ["axiomatic", "lemma", "science", "engineering", "physics"],
   "icon": "./.claude-plugin/icon.png",
