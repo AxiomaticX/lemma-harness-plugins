@@ -28,8 +28,8 @@ In Claude Code, run:
 /reload-plugins
 ```
 
-The plugin works with its default settings. To change whether sessions open in your browser, or
-which model and machine new sessions use, see [Settings](#settings).
+The install asks whether each new Lemma session should open in your browser when Claude sends
+it a message. The default is yes.
 
 To install from a terminal instead, for every project (`user`) or for one project (`project`):
 
@@ -117,6 +117,8 @@ costs.
   you had added them in the browser. Claude uploads only the files you name.
 - The sign-in is stored in your operating system's keychain under `axiomatic-lemma`. Signing
   out removes it.
+- Nothing runs in the background while you are not using Lemma. After Claude starts a run, a
+  background process waits for the run to end so it can tell Claude, and then exits.
 
 ## Which local files Lemma can reach
 
