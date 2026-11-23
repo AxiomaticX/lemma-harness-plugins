@@ -9,7 +9,7 @@ from .auth import Session
 from .client import LemmaClient
 from .client.runs import CHUNK_SECONDS, RETRY_SECONDS, RUNNING, wait, wait_window
 from .config import TARGET, data_dir
-from .errors import NotFoundError, NotLoggedInError
+from .errors import LemmaError
 
 DEFAULT_MINUTES = 60
 MAX_MINUTES = 23 * 60
@@ -67,6 +67,10 @@ def still_running_line(conversation_id: str, run_id: str, seconds: float) -> str
     )
 
 
+def stopped_line(conversation_id: str, run_id: str, why: str) -> str:
+    return f"Stopped waiting for Lemma run {run_id} in conversation {conversation_id}: {why}"
+
+
 async def follow(client: LemmaClient, conversation_id: str, run_id: str, window: float) -> str:
     """The line to wake Claude with: how the run ended, or that it is still going."""
     try:
@@ -79,8 +83,10 @@ async def follow(client: LemmaClient, conversation_id: str, run_id: str, window:
             retry_seconds=RETRY_SECONDS,
             wait_fn=wait,
         )
-    except (NotFoundError, NotLoggedInError) as e:
-        return f"Stopped waiting for Lemma run {run_id} in conversation {conversation_id}: {e}"
+    except LemmaError as e:
+        return stopped_line(conversation_id, run_id, str(e))
+    except Exception:
+        return stopped_line(conversation_id, run_id, "Lemma's reply could not be read.")
     if ended.outcome != RUNNING:
         return finished_line(conversation_id, run_id, ended.outcome)
     return still_running_line(conversation_id, run_id, window)

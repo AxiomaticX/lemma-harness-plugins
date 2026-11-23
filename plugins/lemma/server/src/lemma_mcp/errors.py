@@ -27,3 +27,7 @@ class UsageLimitError(LemmaError):
 
 class NotFoundError(LemmaError):
     pass
+
+
+class ServerError(LemmaError):
+    """Lemma failed on its side (5xx); the same call may work if tried again."""

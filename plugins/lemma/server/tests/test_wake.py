@@ -1,10 +1,17 @@
 import json
 
+import httpx
 import pytest
 
 from lemma_mcp import wake
 from lemma_mcp.client.runs import RunResult
-from lemma_mcp.errors import NotFoundError, NotLoggedInError
+from lemma_mcp.errors import (
+    LemmaError,
+    NotFoundError,
+    NotLoggedInError,
+    ServerError,
+    UsageLimitError,
+)
 
 SENT = {"conversation_id": "c1", "run_id": "r1", "url": "https://lemma.test/en/lemma/c1"}
 
@@ -86,19 +93,45 @@ async def test_a_run_still_going_at_the_end_of_the_window_says_so(monkeypatch):
 
 @pytest.mark.parametrize(
     "reason",
-    [NotFoundError("This conversation has no run r1."), NotLoggedInError("Not signed in.")],
+    [
+        NotFoundError("This conversation has no run r1."),
+        NotLoggedInError("Not signed in."),
+        LemmaError("Lemma returned an error: Forbidden"),
+        UsageLimitError(),
+    ],
 )
 async def test_a_run_that_can_no_longer_be_followed_wakes_claude_with_why(monkeypatch, reason):
+    calls = 0
+
     async def fake_wait(*_args):
+        nonlocal calls
+        calls += 1
         raise reason
 
     monkeypatch.setattr(wake, "wait", fake_wait)
 
-    assert str(reason) in await wake.follow(None, "c1", "r1", 3600)
+    assert await wake.follow(None, "c1", "r1", 3600) == wake.stopped_line("c1", "r1", str(reason))
+    assert calls == 1
 
 
-async def test_an_unexpected_failure_is_retried_rather_than_ending_the_wait(monkeypatch):
-    outcomes = iter([KeyError("outcome"), RunResult("answered", "42")])
+async def test_a_reply_that_cannot_be_read_wakes_claude_at_once(monkeypatch):
+    async def fake_wait(*_args):
+        raise KeyError("outcome")
+
+    monkeypatch.setattr(wake, "wait", fake_wait)
+
+    assert await wake.follow(None, "c1", "r1", 3600) == wake.stopped_line(
+        "c1", "r1", "Lemma's reply could not be read."
+    )
+
+
+@pytest.mark.parametrize(
+    "blip", [httpx.ConnectError("down"), ServerError("Lemma returned an error: HTTP 503")]
+)
+async def test_a_network_or_server_failure_is_retried_rather_than_ending_the_wait(
+    monkeypatch, blip
+):
+    outcomes = iter([blip, RunResult("answered", "42")])
 
     async def fake_wait(*_args):
         result = next(outcomes)

@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from ..errors import LemmaError, NotFoundError, NotLoggedInError
+from ..errors import LemmaError, ServerError
 from . import LemmaClient
 
 RUNNING = "running"
@@ -101,16 +101,15 @@ async def wait_window(
     retry_seconds: float = RETRY_SECONDS,
     wait_fn: Callable[[LemmaClient, str, str, float], Awaitable[RunResult]] = wait,
 ) -> RunResult:
-    """Follow a run in chunks across ``window`` seconds, retrying transient failures."""
+    """Follow a run in chunks across ``window`` seconds, retrying network failures and Lemma's
+    own (5xx) errors; any other failure is raised at once."""
     if window <= 0:
         return await wait_fn(client, conversation_id, run_id, 0.0)
     deadline = time.monotonic() + window
     while (remaining := deadline - time.monotonic()) > 0:
         try:
             ended = await wait_fn(client, conversation_id, run_id, min(remaining, chunk_seconds))
-        except (NotFoundError, NotLoggedInError):
-            raise
-        except Exception:
+        except (httpx.TransportError, ServerError):
             await asyncio.sleep(min(retry_seconds, max(0.0, deadline - time.monotonic())))
             continue
         if ended.outcome != RUNNING:
