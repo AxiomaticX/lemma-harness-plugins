@@ -3,7 +3,7 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "mcp__plugin_lemma_handoff__(create_conversation|start_workflow|send_message|answer_questions|run_plan|wait_for_result)",
+        "matcher": "mcp__plugin_lemma_please__(create_conversation|start_workflow|send_message|answer_questions|run_plan|wait_for_result)",
         "hooks": [
           {
             "type": "command",

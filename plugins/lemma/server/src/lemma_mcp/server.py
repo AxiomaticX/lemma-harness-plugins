@@ -398,7 +398,7 @@ def as_text(result: Any) -> str:
 
 
 def build_server(app: App) -> MCPServer:
-    server = MCPServer("handoff", instructions=f"{INSTRUCTIONS} {UNTRUSTED}")
+    server = MCPServer("please", instructions=f"{INSTRUCTIONS} {UNTRUSTED}")
 
     async def reported(fn: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
         try:

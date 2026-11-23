@@ -1,8 +1,8 @@
 # Contributing
 
 This repository is the `axiomatic-ai` Claude Code marketplace. It holds one plugin,
-`lemma`, in `plugins/lemma/`. Its skill and MCP server are both named `handoff`, so they
-show in Claude Code as `lemma:handoff`.
+`lemma`, in `plugins/lemma/`. Its skill and MCP server are both named `please`, so they
+show in Claude Code as `lemma:please`.
 
 ## What the plugin contains
 
@@ -13,7 +13,7 @@ show in Claude Code as `lemma:handoff`.
   a background hook waits on the run and wakes Claude when it ends, or after
   `wake_after_minutes` (60 by default) to say it is still running. Nothing runs while Lemma is
   not in use.
-- `skills/handoff/SKILL.md`: how an agent should work with Lemma.
+- `skills/please/SKILL.md`: how an agent should work with Lemma.
 - `server/`: the `lemma-mcp` server and the `lemma-wake` hook, in one Python package.
 
 All file transfer goes through `server/src/lemma_mcp/client/files.py`.
