@@ -799,14 +799,14 @@ def test_from_env_reads_the_allowed_folders(monkeypatch: pytest.MonkeyPatch, tmp
     assert App.from_env().allowed_dirs == (Path("/data/a"), Path("/data/b"))
 
 
-@pytest.mark.parametrize(("harness", "background"), [("antigravity", True), ("", False)])
-def test_from_env_waits_in_the_background_under_antigravity(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, harness: str, background: bool
+@pytest.mark.parametrize(("harness", "antigravity"), [("antigravity", True), ("", False)])
+def test_from_env_knows_when_it_runs_under_antigravity(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, harness: str, antigravity: bool
 ):
     monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("LEMMA_HARNESS", harness)
 
-    assert App.from_env().background_wait is background
+    assert App.from_env().antigravity is antigravity
 
 
 async def test_antigravity_mode_guides_background_wait_and_follows_wake_window(
@@ -819,7 +819,7 @@ async def test_antigravity_mode_guides_background_wait_and_follows_wake_window(
         return RunResult("answered", "done")
 
     monkeypatch.setattr("lemma_mcp.server.runs.wait_window", fake_wait_window)
-    server = build_server(replace(app, background_wait=True))
+    server = build_server(replace(app, antigravity=True))
 
     tools = {tool.name: tool for tool in await server.list_tools()}
     assert "wait_for_result" in (server.instructions or "")
@@ -865,12 +865,21 @@ async def test_claude_mode_wait_for_result_uses_foreground_timeout(
     assert seen == [600, 0]
 
 
+SETTING_ENV_VARS = (
+    "LEMMA_OPEN_BROWSER",
+    "LEMMA_DEFAULT_MODEL",
+    "LEMMA_DEFAULT_MACHINE",
+    "LEMMA_MAX_TOOL_OUTPUT_CHARS",
+)
+
+
 async def test_configure_persists_settings_and_applies_them_live(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-    for name in ("LEMMA_OPEN_BROWSER", "LEMMA_DEFAULT_MODEL", "LEMMA_DEFAULT_MACHINE"):
+    for name in SETTING_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("LEMMA_HARNESS", "antigravity")
 
     loaded = App.from_env()
     server = build_server(loaded)
@@ -880,6 +889,7 @@ async def test_configure_persists_settings_and_applies_them_live(
         "open_browser": True,
         "default_model": "Lemma's default",
         "default_machine": "Standard",
+        "max_tool_output_chars": 40_000,
         "config_path": str(tmp_path / "config.json"),
     }
     assert not (tmp_path / "config.json").exists()
@@ -887,20 +897,28 @@ async def test_configure_persists_settings_and_applies_them_live(
     updated = _structured(
         await server.call_tool(
             "configure",
-            {"open_browser": False, "default_model": "Anthropic · Pro", "default_machine": "GPU"},
+            {
+                "open_browser": False,
+                "default_model": "Anthropic · Pro",
+                "default_machine": "GPU",
+                "max_tool_output_chars": 5000,
+            },
         )
     )
     assert updated == {
         "open_browser": False,
         "default_model": "Anthropic · Pro",
         "default_machine": "GPU",
+        "max_tool_output_chars": 5000,
         "config_path": str(tmp_path / "config.json"),
     }
+    assert loaded.max_output_chars == 5000
 
     reloaded = App.from_env()
     assert reloaded.open_browser is False
     assert reloaded.default_model == ("anthropic", "pro")
     assert reloaded.default_machine == "gpu"
+    assert reloaded.max_output_chars == 5000
 
     reset_model = _structured(
         await server.call_tool("configure", {"default_model": "Lemma's default"})
@@ -910,16 +928,29 @@ async def test_configure_persists_settings_and_applies_them_live(
     assert App.from_env().mistyped_model is None
 
 
+async def test_configure_rejects_an_output_cap_below_one(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("LEMMA_HARNESS", "antigravity")
+
+    with pytest.raises(ToolError):
+        await build_server(App.from_env()).call_tool("configure", {"max_tool_output_chars": 0})
+    assert not (tmp_path / "config.json").exists()
+
+
 async def test_env_vars_override_saved_config_and_configure_reports_them(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("LEMMA_HARNESS", "antigravity")
     (tmp_path / "config.json").write_text(
         json.dumps({"open_browser": False, "default_machine": "GPU"}), encoding="utf-8"
     )
     monkeypatch.setenv("LEMMA_DEFAULT_MACHINE", "Max")
     monkeypatch.delenv("LEMMA_OPEN_BROWSER", raising=False)
     monkeypatch.delenv("LEMMA_DEFAULT_MODEL", raising=False)
+    monkeypatch.delenv("LEMMA_MAX_TOOL_OUTPUT_CHARS", raising=False)
 
     loaded = App.from_env()
     assert loaded.default_machine == "max"
@@ -927,6 +958,35 @@ async def test_env_vars_override_saved_config_and_configure_reports_them(
 
     shown = _structured(await build_server(loaded).call_tool("configure", {}))
     assert shown["env_overrides"] == ["LEMMA_DEFAULT_MACHINE"]
+
+
+async def test_claude_code_has_no_configure_and_ignores_saved_settings(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    for name in SETTING_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("LEMMA_HARNESS", raising=False)
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    (tmp_path / "config.json").write_text(
+        json.dumps(
+            {
+                "open_browser": False,
+                "default_model": "Anthropic · Pro",
+                "default_machine": "GPU",
+                "max_tool_output_chars": 5000,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = App.from_env()
+
+    assert loaded.open_browser is True
+    assert loaded.default_model is None
+    assert loaded.default_machine is None
+    assert loaded.max_output_chars == 40_000
+    tools = {tool.name for tool in await build_server(loaded).list_tools()}
+    assert "configure" not in tools
 
 
 async def test_the_wake_hook_matches_the_tools_the_plugin_serves(app: App):

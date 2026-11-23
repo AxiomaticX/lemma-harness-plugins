@@ -222,9 +222,11 @@ DefaultMachine = Literal["Standard", "Enhanced", "High performance", "Max", "GPU
 CONFIGURE = (
     "Read or update the plugin's persistent settings (saved in config.json in the plugin's data "
     "folder, so they survive plugin updates). Call with no arguments to see the current "
-    "settings; pass any subset of open_browser, default_model and default_machine to change "
-    "them immediately without restarting. Only change settings when the user asks."
+    "settings; pass any subset of open_browser, default_model, default_machine and "
+    "max_tool_output_chars to change them immediately without restarting. Only change settings "
+    "when the user asks."
 )
+OutputCap = Annotated[int, Field(gt=0)]
 
 
 PROVIDER_TIERS: dict[str, tuple[str, ...]] = {
@@ -250,12 +252,17 @@ MACHINE_CHOICES: dict[str, str] = {
 }
 MODEL_LABELS: dict[tuple[str, str], str] = {v: k for k, v in MODEL_CHOICES.items()}
 MACHINE_LABELS: dict[str, str] = {v: k for k, v in MACHINE_CHOICES.items()}
-SETTING_ENV_VARS = ("LEMMA_OPEN_BROWSER", "LEMMA_DEFAULT_MODEL", "LEMMA_DEFAULT_MACHINE")
+SETTING_ENV_VARS = (
+    "LEMMA_OPEN_BROWSER",
+    "LEMMA_DEFAULT_MODEL",
+    "LEMMA_DEFAULT_MACHINE",
+    "LEMMA_MAX_TOOL_OUTPUT_CHARS",
+)
 MEANS_LEMMAS_DEFAULT = {"", "lemmasdefault", "lemmadefault", "default"}
 FIX_SETTINGS = "Change it with /plugin configure lemma@axiomatic-ai, then run /reload-plugins."
 
 
-def _max_output_chars(raw: str | None) -> int:
+def _max_output_chars(raw: str | int | None) -> int:
     """The output cap setting, or the default when it is unset or not a positive number."""
     try:
         chars = int(float(raw or ""))
@@ -282,13 +289,14 @@ class App:
     mistyped_model: str | None = None
     mistyped_machine: str | None = None
     allowed_dirs: tuple[Path, ...] = ()
-    background_wait: bool = False
+    antigravity: bool = False
     settings_dir: Path | None = None
 
     @classmethod
     def from_env(cls) -> "App":
+        antigravity = os.environ.get("LEMMA_HARNESS", "").strip().lower() == "antigravity"
         settings_dir = data_dir()
-        saved = load_settings(settings_dir)
+        saved = load_settings(settings_dir) if antigravity else {}
         typed_model = os.environ.get("LEMMA_DEFAULT_MODEL") or saved.get("default_model") or ""
         typed_machine = (
             os.environ.get("LEMMA_DEFAULT_MACHINE") or saved.get("default_machine") or ""
@@ -314,11 +322,13 @@ class App:
             default_machine=default_machine,
             mistyped_model=mistyped(typed_model, default_model),
             mistyped_machine=mistyped(typed_machine, default_machine),
-            max_output_chars=_max_output_chars(os.environ.get("LEMMA_MAX_TOOL_OUTPUT_CHARS")),
+            max_output_chars=_max_output_chars(
+                os.environ.get("LEMMA_MAX_TOOL_OUTPUT_CHARS") or saved.get("max_tool_output_chars")
+            ),
             allowed_dirs=tuple(
                 Path(p) for p in os.environ.get("LEMMA_ALLOWED_DIRS", "").split(os.pathsep) if p
             ),
-            background_wait=os.environ.get("LEMMA_HARNESS", "").strip().lower() == "antigravity",
+            antigravity=antigravity,
             settings_dir=settings_dir,
         )
 
@@ -331,6 +341,7 @@ class App:
             "default_machine": MACHINE_LABELS.get(self.default_machine, "Standard")
             if self.default_machine is not None
             else "Standard",
+            "max_tool_output_chars": self.max_output_chars,
             "config_path": str(self.settings_dir / CONFIG_FILENAME) if self.settings_dir else None,
         }
         overrides = [name for name in SETTING_ENV_VARS if os.environ.get(name)]
@@ -344,6 +355,7 @@ class App:
         open_browser: bool | None = None,
         default_model: DefaultModel | None = None,
         default_machine: DefaultMachine | None = None,
+        max_tool_output_chars: int | None = None,
     ) -> dict[str, Any]:
         updates: dict[str, Any] = {}
         if open_browser is not None:
@@ -357,6 +369,9 @@ class App:
             self.default_machine = MACHINE_CHOICES.get(default_machine)
             self.mistyped_machine = None
             updates["default_machine"] = default_machine
+        if max_tool_output_chars is not None:
+            self.max_output_chars = max_tool_output_chars
+            updates["max_tool_output_chars"] = max_tool_output_chars
         if updates and self.settings_dir is not None:
             save_settings(self.settings_dir, updates)
         return self.settings()
@@ -506,9 +521,9 @@ def as_text(result: Any) -> str:
 
 
 def build_server(app: App) -> MCPServer:
-    instructions = BACKGROUND_INSTRUCTIONS if app.background_wait else INSTRUCTIONS
-    wake = BACKGROUND_WAKE if app.background_wait else WAKE
-    wait_description = BACKGROUND_WAIT_FOR_RESULT if app.background_wait else WAIT_FOR_RESULT
+    instructions = BACKGROUND_INSTRUCTIONS if app.antigravity else INSTRUCTIONS
+    wake = BACKGROUND_WAKE if app.antigravity else WAKE
+    wait_description = BACKGROUND_WAIT_FOR_RESULT if app.antigravity else WAIT_FOR_RESULT
     server = MCPServer("lemma", instructions=f"{instructions} {UNTRUSTED}")
 
     async def reported(fn: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
@@ -776,7 +791,7 @@ def build_server(app: App) -> MCPServer:
         timeout_s: int | None = None,
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
     ) -> dict[str, Any]:
-        if app.background_wait:
+        if app.antigravity:
             if timeout_s is not None:
                 window = float(max(0, min(timeout_s, MAX_WAKE_MINUTES * 60)))
             else:
@@ -852,17 +867,21 @@ def build_server(app: App) -> MCPServer:
         url = app.target.conversation_url(conversation_id)
         return {"opened": webbrowser.open(url), "url": url}
 
-    @tool(description=CONFIGURE)
-    async def configure(
-        open_browser: bool | None = None,
-        default_model: DefaultModel | None = None,
-        default_machine: DefaultMachine | None = None,
-    ) -> dict[str, Any]:
-        return app.configure(
-            open_browser=open_browser,
-            default_model=default_model,
-            default_machine=default_machine,
-        )
+    if app.antigravity:
+
+        @tool(description=CONFIGURE)
+        async def configure(
+            open_browser: bool | None = None,
+            default_model: DefaultModel | None = None,
+            default_machine: DefaultMachine | None = None,
+            max_tool_output_chars: OutputCap | None = None,
+        ) -> dict[str, Any]:
+            return app.configure(
+                open_browser=open_browser,
+                default_model=default_model,
+                default_machine=default_machine,
+                max_tool_output_chars=max_tool_output_chars,
+            )
 
     @tool()
     async def login() -> str:

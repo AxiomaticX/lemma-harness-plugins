@@ -99,6 +99,7 @@ Change these with `/plugin configure lemma@axiomatic-ai`.
 | Open sessions in the browser | On | Opens each new session in your browser as soon as Claude sends its first message. |
 | Default model | Lemma's default | The model a new session uses when you don't name one. Lemma's default is the model Lemma would use in the browser. The other values are Anthropic Pro Fast, Anthropic Pro, Anthropic Normal, Google Pro, Google Normal, Open-weight Pro, and Open-weight Normal. |
 | Default machine | Standard | The machine a new session runs on when you don't name one. The values are Standard, Enhanced, High performance, Max, and GPU. Larger machines cost more. The machine cannot change once a session has started. |
+| Tool output cap | 40000 | The most characters the tools that read sessions, plans and results return to Claude. A longer result is cut, and Claude can save the whole of it to a file instead. |
 
 Type the model and machine values as shown. Capital letters, spaces, and punctuation don't
 matter. If the plugin doesn't recognize a value, Lemma uses its own default, and Claude tells you
@@ -150,8 +151,7 @@ change `LEMMA_ALLOWED_DIRS`; set it in the environment that starts Claude Code.
   you turned that off, and any session Claude opens with `open_in_browser`.
 - **Writes locally:** files you ask Claude to download, into the folders listed under "Which local
   files Lemma can reach", each written first as a `.part` file beside it; the refresh token, in the
-  OS keychain; a sign-in lock file in `~/.lemma-mcp`, and `~/.lemma-mcp/config.json` when Claude
-  saves settings with `configure`; output Claude saves with `output_file`; and
+  OS keychain; a sign-in lock file in `~/.lemma-mcp`; output Claude saves with `output_file`; and
   the Python environment, in `server/.venv` in the installed plugin and in `uv`'s cache.
 
 Nothing else is sent anywhere.

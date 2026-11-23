@@ -127,9 +127,9 @@ Runs take minutes, and long ones take hours. Do not poll in a loop.
 - In Antigravity you are not woken by a hook. Call `wait_for_result` right after starting a run:
   it runs in the background and wakes you with the outcome when the run ends, or after
   `wake_after_minutes` (60 by default) with outcome `running`; call it again to keep waiting.
-- `configure` reads or updates the plugin's persistent settings (`open_browser`,
-  `default_model` and `default_machine`), taking effect immediately and surviving plugin
-  updates. Only change settings when the user asks.
+- In Antigravity, `configure` reads or updates the plugin's persistent settings
+  (`open_browser`, `default_model`, `default_machine` and `max_tool_output_chars`), taking
+  effect immediately and surviving plugin updates. Only change settings when the user asks.
 - `get_result` reports the outcome at once without waiting.
 
 ## Read the outcome
