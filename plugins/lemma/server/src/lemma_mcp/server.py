@@ -219,7 +219,14 @@ DefaultModel = Literal[
     "Open-weight · Pro",
     "Open-weight · Normal",
 ]
-DefaultMachine = Literal["Standard", "Enhanced", "High performance", "Max", "GPU"]
+DefaultMachine = Literal[
+    "Lemma's default",
+    "Standard",
+    "Enhanced",
+    "High performance",
+    "Max",
+    "GPU",
+]
 CONFIGURE = (
     "Read or update the plugin's persistent settings (saved in config.json in the plugin's data "
     "folder, so they survive plugin updates). Call with no arguments to see the current "
@@ -349,9 +356,9 @@ class App:
             "default_model": MODEL_LABELS.get(self.default_model, "Lemma's default")
             if self.default_model is not None
             else "Lemma's default",
-            "default_machine": MACHINE_LABELS.get(self.default_machine, "Standard")
+            "default_machine": MACHINE_LABELS.get(self.default_machine, "Lemma's default")
             if self.default_machine is not None
-            else "Standard",
+            else "Lemma's default",
             "max_tool_output_chars": self.max_output_chars,
             "config_path": str(self.settings_dir / CONFIG_FILENAME) if self.settings_dir else None,
         }

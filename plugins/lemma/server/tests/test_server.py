@@ -1028,7 +1028,7 @@ async def test_configure_persists_settings_and_applies_them_live(
     assert initial == {
         "open_browser": True,
         "default_model": "Lemma's default",
-        "default_machine": "Standard",
+        "default_machine": "Lemma's default",
         "max_tool_output_chars": 40_000,
         "config_path": str(tmp_path / "config.json"),
     }
@@ -1066,6 +1066,14 @@ async def test_configure_persists_settings_and_applies_them_live(
     assert reset_model["default_model"] == "Lemma's default"
     assert loaded.default_model is None
     assert App.from_env().mistyped_model is None
+
+    reset_machine = _structured(
+        await server.call_tool("configure", {"default_machine": "Lemma's default"})
+    )
+    assert reset_machine["default_machine"] == "Lemma's default"
+    assert loaded.default_machine is None
+    assert App.from_env().default_machine is None
+    assert App.from_env().mistyped_machine is None
 
 
 async def test_configure_rejects_an_output_cap_below_one(

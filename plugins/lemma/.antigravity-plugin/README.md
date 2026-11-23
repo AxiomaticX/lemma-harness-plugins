@@ -27,7 +27,7 @@ Install from GitHub with `agy`:
 agy plugin install https://github.com/AxiomaticX/lemma-harness-plugins/tree/main/plugins/lemma
 ```
 
-Restart Antigravity after installing so the `handoff` MCP server loads.
+Restart Antigravity after installing so the `lemma` MCP server loads.
 
 ## Sign in
 

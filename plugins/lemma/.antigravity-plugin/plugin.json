@@ -3,7 +3,7 @@
   "name": "lemma",
   "displayName": "Lemma",
   "version": "0.8.0",
-  "description": "Hand science and engineering work to Lemma: start a session or find and read an earlier one, send files, wait for the run, read the answer, download results, and open it in the browser.",
+  "description": "Hand science and engineering work to Lemma: start or resume a session, send files, read the answer, download results, and open it in the browser.",
   "logo": "assets/icon.png",
   "suggestedPrompts": [
     "Ask Lemma to survey recent papers on a research topic and summarize the key findings",
