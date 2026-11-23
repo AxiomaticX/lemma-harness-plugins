@@ -132,6 +132,9 @@ the project (`CLAUDE_PROJECT_DIR`), and any folders listed in `LEMMA_ALLOWED_DIR
 Hidden files and folders, such as `.env`, `.ssh` or `.aws`, are always refused. Claude cannot
 change `LEMMA_ALLOWED_DIRS`; set it in the environment that starts Claude Code.
 
+In Antigravity, the workspace is the folders Antigravity reports. If it reports none, files are
+saved to `workspace/` in the plugin's data folder.
+
 ## What the plugin runs, sends and fetches
 
 - **Runs locally:** the `lemma-mcp` server, which Claude Code starts when the plugin loads and

@@ -286,7 +286,7 @@ def _parse_open_browser(raw: Any) -> bool:
 class App:
     target: Target
     client: LemmaClient
-    project_dir: Path
+    project_dir: Path | None
     open_browser: bool
     default_model: tuple[str, str] | None = None
     default_machine: str | None = None
@@ -297,10 +297,13 @@ class App:
     antigravity: bool = False
     settings_dir: Path | None = None
     unwaited_dir: Path | None = None
+    fallback_dir: Path | None = None
 
     @classmethod
     def from_env(cls) -> "App":
         antigravity = os.environ.get("LEMMA_HARNESS", "").strip().lower() == "antigravity"
+        project = os.environ.get("CLAUDE_PROJECT_DIR")
+        plugin_data = os.environ.get("PLUGIN_DATA")
         settings_dir = data_dir()
         saved = load_settings(settings_dir) if antigravity else {}
         typed_model = os.environ.get("LEMMA_DEFAULT_MODEL") or saved.get("default_model") or ""
@@ -322,7 +325,8 @@ class App:
         return cls(
             target=TARGET,
             client=LemmaClient(Session(TARGET, settings_dir)),
-            project_dir=Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd()),
+            project_dir=Path(project) if project else None,
+            fallback_dir=Path(plugin_data) / "workspace" if plugin_data else Path.cwd(),
             open_browser=open_browser,
             default_model=default_model,
             default_machine=default_machine,
@@ -412,14 +416,25 @@ class App:
         fix = ANTIGRAVITY_FIX_SETTINGS if self.antigravity else FIX_SETTINGS
         return f"The plugin did not recognize the {' or the '.join(ignored)}. {fix}"
 
+    def _project(self, workspace: tuple[Path, ...]) -> tuple[Path, ...]:
+        """The project folder: CLAUDE_PROJECT_DIR, or the fallback only when the client reports
+        no workspace."""
+        if self.project_dir is not None:
+            return (self.project_dir,)
+        if workspace or self.fallback_dir is None:
+            return ()
+        self.fallback_dir.mkdir(parents=True, exist_ok=True)
+        return (self.fallback_dir,)
+
     def locate(self, raw: str, workspace: tuple[Path, ...] = ()) -> tuple[Path, bool]:
         """The real path, and whether it lies inside the client's workspace, the project or
         LEMMA_ALLOWED_DIRS. Hidden paths are refused outright, so secrets such as .ssh or .env
         never reach Lemma."""
+        project = self._project(workspace)
         path = Path(raw).expanduser()
-        base = workspace[0] if workspace else self.project_dir
+        base = next(iter((*workspace, *project)), None) or Path.cwd()
         path = (path if path.is_absolute() else base / path).resolve()
-        for root in (*workspace, self.project_dir, *self.allowed_dirs):
+        for root in (*workspace, *project, *self.allowed_dirs):
             root = root.expanduser().resolve()
             if path.is_relative_to(root):
                 if any(part.startswith(".") for part in path.relative_to(root).parts):

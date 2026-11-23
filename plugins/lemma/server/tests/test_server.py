@@ -669,6 +669,69 @@ def test_files_come_only_from_the_project_or_the_allowed_folders(app: App, tmp_p
             scoped.local_path(raw)
 
 
+def test_the_fallback_folder_counts_only_when_the_client_reports_no_workspace(
+    app: App, tmp_path: Path
+):
+    workspace, fallback = tmp_path / "workspace", tmp_path / "plugin-data" / "workspace"
+    workspace.mkdir()
+    unrooted = replace(app, project_dir=None, fallback_dir=fallback)
+
+    assert unrooted.locate("data.csv", (workspace,)) == (workspace.resolve() / "data.csv", True)
+    assert unrooted.locate(str(fallback / "x"), (workspace,))[1] is False
+    assert unrooted.locate("x", ()) == (fallback.resolve() / "x", True)
+    assert fallback.is_dir()
+
+
+@pytest.mark.parametrize(
+    ("project", "plugin_data", "expected_project", "expected_fallback"),
+    [
+        ("/work/proj", "/data/lemma", Path("/work/proj"), Path("/data/lemma/workspace")),
+        (None, "/data/lemma", None, Path("/data/lemma/workspace")),
+        (None, None, None, Path.cwd()),
+    ],
+)
+def test_from_env_takes_the_project_from_claude_and_the_fallback_from_plugin_data(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    project: str | None,
+    plugin_data: str | None,
+    expected_project: Path | None,
+    expected_fallback: Path,
+):
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    for name, value in (("CLAUDE_PROJECT_DIR", project), ("PLUGIN_DATA", plugin_data)):
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+
+    loaded = App.from_env()
+
+    assert loaded.project_dir == expected_project
+    assert loaded.fallback_dir == expected_fallback
+
+
+@pytest.mark.parametrize("reported", [True, False])
+async def test_a_relative_output_file_lands_in_the_workspace_the_client_reports(
+    app: App, api, tmp_path: Path, reported: bool
+):
+    _long_transcript(api, 50)
+    workspace, fallback = tmp_path / "workspace", tmp_path / "plugin-data" / "workspace"
+    workspace.mkdir()
+    unrooted = replace(app, project_dir=None, fallback_dir=fallback)
+
+    async def roots(_context):
+        return ListRootsResult(roots=[Root(uri=workspace.as_uri())] if reported else [])
+
+    async with Client(build_server(unrooted), list_roots_callback=roots) as client:
+        await client.call_tool(
+            "read_conversation", {"conversation_id": "c1", "output_file": "page.json"}
+        )
+
+    landed = (workspace if reported else fallback) / "page.json"
+    assert json.loads(landed.read_text())["messages"][0]["text"] == "x" * 50
+
+
 async def test_an_upload_from_outside_the_project_never_reaches_lemma(app: App, api, tmp_path):
     with pytest.raises(ToolError, match="outside the project"):
         await build_server(app).call_tool(
