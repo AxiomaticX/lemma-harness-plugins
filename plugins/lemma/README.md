@@ -58,6 +58,9 @@ Ask Claude in your own words. For example:
 - "Ask Lemma to plan a simulation of this waveguide, but don't run anything until I approve the
   plan."
 
+To make sure Claude uses Lemma, start the request with `/lemma`, such as `/lemma survey recent
+literature on perovskite solar cell stability`.
+
 Claude writes the brief for Lemma, sends it, and gives you the session link. Runs take
 minutes, and long ones take hours. You can keep working with Claude in the meantime: Claude is
 told when the run ends and reports what Lemma answered.

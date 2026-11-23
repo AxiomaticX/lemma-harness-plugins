@@ -796,3 +796,16 @@ def test_from_env_reads_the_allowed_folders(monkeypatch: pytest.MonkeyPatch, tmp
     monkeypatch.setenv("LEMMA_ALLOWED_DIRS", f"/data/a{os.pathsep}/data/b")
 
     assert App.from_env().allowed_dirs == (Path("/data/a"), Path("/data/b"))
+
+
+async def test_the_wake_hook_matches_the_tools_the_plugin_serves(app: App):
+    plugin = Path(__file__).parents[2]
+    name = json.loads((plugin / ".claude-plugin" / "plugin.json").read_text())["name"]
+    (server_key,) = json.loads((plugin / ".mcp.json").read_text())["mcpServers"]
+    hooks = json.loads((plugin / "hooks" / "hooks.json").read_text())
+    (matcher,) = [entry["matcher"] for entry in hooks["hooks"]["PostToolUse"]]
+
+    prefix = f"mcp__plugin_{name}_{server_key}__"
+    assert matcher.startswith(f"{prefix}(") and matcher.endswith(")")
+    served = {tool.name for tool in await build_server(app).list_tools()}
+    assert set(matcher[len(prefix) + 1 : -1].split("|")) <= served
