@@ -12,14 +12,14 @@ for research and computing in science and engineering.
 
 Requires the Antigravity app or `agy` CLI, and
 [`uv`](https://docs.astral.sh/uv/getting-started/installation/) on your `PATH`. Install `lemma`
-from GitHub:
+from GitHub, then restart Antigravity:
 
 ```bash
 agy plugin install https://github.com/AxiomaticX/lemma-harness-plugins/tree/main/plugins/lemma
 ```
 
-Sign-in, usage and what the plugin sends work as described for
-[Claude Code](plugins/lemma/README.md).
+Sign-in, usage, local file rules (`LEMMA_ALLOWED_DIRS`), and what the plugin sends work as
+described for [Claude Code](plugins/lemma/README.md).
 
 To change settings, ask the agent to configure Lemma, for example "configure Lemma not to open
 the browser". That calls the `configure` tool, which applies the change at once and saves it to
@@ -33,6 +33,13 @@ In Antigravity, `wait_for_result` runs in the background with no time limit and 
 when the run ends, or after `wake_after_minutes` (60 by default) with outcome `running`. The
 agent can't end its turn while a run it started has no wait on it: the plugin's stop hook sends
 it back to call `wait_for_result`.
+
+To update or remove `lemma` (restart Antigravity afterwards):
+
+```bash
+agy plugin uninstall lemma
+agy plugin install https://github.com/AxiomaticX/lemma-harness-plugins/tree/main/plugins/lemma
+```
 
 To work on the plugins, see [CONTRIBUTING.md](CONTRIBUTING.md). Licensed under the
 [MIT License](LICENSE).

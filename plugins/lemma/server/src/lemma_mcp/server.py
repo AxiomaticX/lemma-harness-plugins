@@ -261,6 +261,10 @@ SETTING_ENV_VARS = (
 )
 MEANS_LEMMAS_DEFAULT = {"", "lemmasdefault", "lemmadefault", "default"}
 FIX_SETTINGS = "Change it with /plugin configure lemma@axiomatic-ai, then run /reload-plugins."
+ANTIGRAVITY_FIX_SETTINGS = (
+    "Change it with the configure tool, or fix the LEMMA_DEFAULT_* environment variable and "
+    "restart Antigravity."
+)
 
 
 def _max_output_chars(raw: str | int | None) -> int:
@@ -405,7 +409,8 @@ class App:
             )
         if not ignored:
             return None
-        return f"The plugin did not recognize the {' or the '.join(ignored)}. {FIX_SETTINGS}"
+        fix = ANTIGRAVITY_FIX_SETTINGS if self.antigravity else FIX_SETTINGS
+        return f"The plugin did not recognize the {' or the '.join(ignored)}. {fix}"
 
     def locate(self, raw: str, workspace: tuple[Path, ...] = ()) -> tuple[Path, bool]:
         """The real path, and whether it lies inside the client's workspace, the project or
@@ -437,13 +442,19 @@ class App:
             )
         return path
 
-    def fit(self, result: Any, output_file: str | None) -> str:
+    def fit(
+        self,
+        result: Any,
+        output_file: str | None,
+        workspace: tuple[Path, ...] = (),
+        allow_outside: bool = False,
+    ) -> str:
         """``result`` as text: saved whole to ``output_file`` when one is given, otherwise within
         the output cap, with a note on how to get the rest."""
         text = as_text(result)
         if output_file is not None:
             try:
-                return self._save(text, output_file)
+                return self._save(text, output_file, workspace, allow_outside)
             except (OSError, UnicodeError) as e:
                 raise ToolError(f"Could not save the output to {output_file}: {e}") from e
         if len(text) <= self.max_output_chars:
@@ -452,13 +463,21 @@ class App:
         kept = max(0, self.max_output_chars - len(note) - 2)
         return f"{text[:kept]}\n\n{note}"
 
-    def _save(self, text: str, output_file: str) -> str:
+    def _save(
+        self,
+        text: str,
+        output_file: str,
+        workspace: tuple[Path, ...] = (),
+        allow_outside: bool = False,
+    ) -> str:
         """Resolve only the folder, so a link already at the file's name counts as taken and is
         never written through."""
         named = Path(output_file)
+        if not named.name:
+            raise ToolError("output_file must be a file path.")
         if named.name.startswith("."):
             raise ToolError(f"{output_file} is hidden; hidden files and folders are not written.")
-        wanted = self.local_path(str(named.parent)) / named.name
+        wanted = self.local_path(str(named.parent), workspace, allow_outside) / named.name
         wanted.parent.mkdir(parents=True, exist_ok=True)
         while True:
             path = remote_files.free_path(wanted)
@@ -550,6 +569,28 @@ def build_server(app: App) -> MCPServer:
         except httpx.HTTPError as e:
             raise ToolError(f"Could not reach Lemma: {e}") from e
 
+    def output_roots(ctx: Context, output_file: str | None = None) -> ListRoots | ListRootsResult:
+        if output_file is not None and not output_file.strip():
+            raise ToolError("output_file must be a file path.")
+        return _client_roots(ctx) if output_file else ListRootsResult(roots=[])
+
+    OutputWorkspace = Annotated[ListRootsResult, Resolve(output_roots)]
+
+    def output_consent(
+        ctx: Context, workspace: OutputWorkspace, output_file: str | None = None
+    ) -> Allow | Elicit[Allow]:
+        if output_file is None:
+            return Allow(allow=True)
+        named = Path(output_file)
+        if not named.name:
+            raise ToolError("output_file must be a file path.")
+        if named.name.startswith("."):
+            raise ToolError(f"{output_file} is hidden; hidden files and folders are not written.")
+        inside = app.locate(str(named.parent), _folders(workspace))[1]
+        return _ask_user(ctx, [] if inside else [output_file], "save tool output to a file")
+
+    OutputConsent = Annotated[ElicitationResult[Allow], Resolve(output_consent)]
+
     def tool(description: str | None = None, capped: bool = False):
         """Register a tool whose Lemma failures come back as their own message. A capped tool only
         reads, and its output is held to the cap, with output_file for the rest."""
@@ -564,22 +605,48 @@ def build_server(app: App) -> MCPServer:
                 plain.__signature__ = inspect.signature(fn).replace(return_annotation=str)
                 return server.tool(description=description, structured_output=False)(plain)
 
-            @functools.wraps(fn)
-            async def call(*args: Any, output_file: str | None = None, **kwargs: Any) -> str:
+            @functools.wraps(
+                fn, assigned=("__module__", "__name__", "__qualname__", "__doc__"), updated=()
+            )
+            async def call(
+                *args: Any,
+                output_file: str | None = None,
+                workspace: OutputWorkspace = None,
+                consent: OutputConsent = None,
+                **kwargs: Any,
+            ) -> str:
                 if output_file is not None and not output_file.strip():
                     raise ToolError("output_file must be a file path.")
-                return app.fit(await reported(fn, *args, **kwargs), output_file)
+                allow, folders = _allowed(consent), _folders(workspace)
+                return app.fit(await reported(fn, *args, **kwargs), output_file, folders, allow)
 
             signature = inspect.signature(fn)
-            output_file = inspect.Parameter(
-                "output_file",
-                inspect.Parameter.KEYWORD_ONLY,
-                default=None,
-                annotation=str | None,
-            )
-            call.__signature__ = signature.replace(
-                parameters=[*signature.parameters.values(), output_file], return_annotation=str
-            )
+            extra = [
+                inspect.Parameter(
+                    "output_file",
+                    inspect.Parameter.KEYWORD_ONLY,
+                    default=None,
+                    annotation=str | None,
+                ),
+                inspect.Parameter(
+                    "workspace",
+                    inspect.Parameter.KEYWORD_ONLY,
+                    default=None,
+                    annotation=OutputWorkspace,
+                ),
+                inspect.Parameter(
+                    "consent",
+                    inspect.Parameter.KEYWORD_ONLY,
+                    default=None,
+                    annotation=OutputConsent,
+                ),
+            ]
+            params = [*signature.parameters.values(), *extra]
+            call.__signature__ = signature.replace(parameters=params, return_annotation=str)
+            call.__annotations__ = {
+                **{p.name: p.annotation for p in params},
+                "return": str,
+            }
             return server.tool(description=description, structured_output=False)(call)
 
         return register

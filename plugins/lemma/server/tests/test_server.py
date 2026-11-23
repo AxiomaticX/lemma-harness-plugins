@@ -784,8 +784,85 @@ async def test_saving_outside_the_project_asks_the_user_first(app: App, api, tmp
 async def test_the_agent_cannot_supply_the_workspace_or_the_consent(app: App):
     tools = {tool.name: tool for tool in await build_server(app).list_tools()}
 
-    for name in ["create_conversation", "send_message", "start_workflow", "download_file"]:
+    for name in [
+        "create_conversation",
+        "send_message",
+        "start_workflow",
+        "download_file",
+        "read_conversation",
+        "find_conversations",
+        "list_conversations",
+        "get_plan",
+        "get_result",
+        "wait_for_result",
+    ]:
         assert not {"workspace", "consent"} & set(tools[name].input_schema["properties"])
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_output_file_in_the_client_workspace_is_saved_there(
+    app: App, api, tmp_path: Path, mode: str
+):
+    workspace = _beside(tmp_path, "workspace")
+    _long_transcript(api, 50)
+    elicit, asked = _answering("decline")
+
+    async def roots(_context):
+        return ListRootsResult(roots=[Root(uri=workspace.as_uri())])
+
+    async with Client(
+        build_server(app), mode=mode, list_roots_callback=roots, elicitation_callback=elicit
+    ) as client:
+        result = await client.call_tool(
+            "read_conversation", {"conversation_id": "c1", "output_file": "page.json"}
+        )
+
+    assert not result.is_error, result
+    assert not asked
+    assert json.loads((workspace / "page.json").read_text())["messages"][0]["text"] == "x" * 50
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_output_file_outside_the_workspace_asks_the_user_first(
+    app: App, api, tmp_path: Path, mode: str
+):
+    outside = _beside(tmp_path, "outside") / "page.json"
+    _long_transcript(api, 50)
+    elicit, asked = _answering("accept")
+
+    async with Client(build_server(app), mode=mode, elicitation_callback=elicit) as client:
+        result = await client.call_tool(
+            "read_conversation", {"conversation_id": "c1", "output_file": str(outside)}
+        )
+
+    assert not result.is_error, result
+    assert len(asked) == 1 and str(outside) in asked[0]
+    assert json.loads(outside.read_text())["messages"][0]["text"] == "x" * 50
+
+
+async def test_declined_output_file_outside_never_calls_lemma(app: App, api, tmp_path: Path):
+    outside = _beside(tmp_path, "outside") / "page.json"
+    elicit, asked = _answering("decline")
+
+    async with Client(build_server(app), elicitation_callback=elicit) as client:
+        result = await client.call_tool(
+            "read_conversation", {"conversation_id": "c1", "output_file": str(outside)}
+        )
+
+    assert result.is_error and "did not allow" in result.content[0].text
+    assert asked and not api.calls and not outside.exists()
+
+
+async def test_a_hidden_output_file_is_refused_without_asking(app: App, api, tmp_path: Path):
+    elicit, asked = _answering("accept")
+
+    async with Client(build_server(app), elicitation_callback=elicit) as client:
+        result = await client.call_tool(
+            "read_conversation", {"conversation_id": "c1", "output_file": ".secret.json"}
+        )
+
+    assert result.is_error and "hidden" in result.content[0].text
+    assert not asked and not api.calls
 
 
 async def test_what_lemma_returns_is_marked_as_data_not_instructions(app: App):

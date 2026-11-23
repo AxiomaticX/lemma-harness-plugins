@@ -9,7 +9,7 @@
     "url": "https://axiomatic.ai"
   },
   "keywords": ["axiomatic", "lemma", "science", "engineering", "physics"],
-  "icon": "./.claude-plugin/icon.png",
+  "icon": "./assets/icon.png",
   "license": "MIT",
   "documentationUrl": "https://github.com/AxiomaticX/lemma-harness-plugins/tree/main/plugins/lemma#readme",
   "privacyPolicyUrl": "https://axiomatic.ai/privacy-policy",

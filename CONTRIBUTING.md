@@ -48,8 +48,11 @@ To try a local checkout, add the repository directory as a marketplace:
 /plugin install lemma@axiomatic-ai
 ```
 
-In Antigravity, check the manifest and install a local checkout. Remove `server/.venv` first if
-you ran `uv sync`, as `agy plugin install` rejects symlinks that point outside the plugin folder:
+In Antigravity, check the plugin folder (not the repository root `.`) and install a local
+checkout. Two warnings are expected, for Claude Code's `.mcp.json` and `hooks/hooks.json`, which
+Antigravity ignores because both harnesses share `plugins/lemma/`. So run it without `--strict`,
+which still fails on any error. Remove `server/.venv` first if you ran `uv sync`, as
+`agy plugin install` rejects symlinks that point outside the plugin folder:
 
 ```bash
 agy plugin validate plugins/lemma
