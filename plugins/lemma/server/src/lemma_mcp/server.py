@@ -21,6 +21,7 @@ from mcp.server.mcpserver.resolve import Elicit, ListRoots, Resolve
 from mcp_types import ListRootsResult
 from pydantic import BaseModel, Field
 
+from . import unwaited
 from .auth import Session
 from .client import LemmaClient, conversations, options, plan, runs
 from .client import files as remote_files
@@ -291,6 +292,7 @@ class App:
     allowed_dirs: tuple[Path, ...] = ()
     antigravity: bool = False
     settings_dir: Path | None = None
+    unwaited_dir: Path | None = None
 
     @classmethod
     def from_env(cls) -> "App":
@@ -330,6 +332,7 @@ class App:
             ),
             antigravity=antigravity,
             settings_dir=settings_dir,
+            unwaited_dir=unwaited.directory() if antigravity else None,
         )
 
     def settings(self) -> dict[str, Any]:
@@ -492,6 +495,19 @@ def _client_roots(ctx: Context) -> ListRoots | ListRootsResult:
 Workspace = Annotated[ListRootsResult, Resolve(_client_roots)]
 
 
+def _caller(ctx: Context) -> str | None:
+    """The Antigravity conversation making this call, which its Stop hook is keyed on."""
+    try:
+        meta = ctx.request_context.meta or {}
+    except (ValueError, RuntimeError):
+        return None
+    caller = meta.get(unwaited.CALLER_META_KEY)
+    return caller if isinstance(caller, str) else None
+
+
+Caller = Annotated[str | None, Resolve(_caller)]
+
+
 def _folders(workspace: ListRootsResult) -> tuple[Path, ...]:
     uris = (urlparse(str(root.uri)) for root in workspace.roots)
     return tuple(Path(url2pathname(uri.path)) for uri in uris if uri.scheme == "file")
@@ -576,7 +592,12 @@ def build_server(app: App) -> MCPServer:
             "url": app.target.conversation_url(conversation_id),
         }
 
-    def started(conversation_id: Id, run_id: Id) -> dict[str, Any]:
+    def unwaited_run(caller: str | None, conversation_id: str, run_id: str) -> None:
+        if app.unwaited_dir is not None and caller:
+            unwaited.record(app.unwaited_dir, caller, conversation_id, run_id)
+
+    def started(conversation_id: Id, run_id: Id, caller: str | None) -> dict[str, Any]:
+        unwaited_run(caller, conversation_id, run_id)
         url = app.target.conversation_url(conversation_id)
         return {"conversation_id": conversation_id, "run_id": run_id, "url": url}
 
@@ -586,9 +607,13 @@ def build_server(app: App) -> MCPServer:
         ]
 
     def started_new(
-        conversation_id: str, run_id: str, model: str | None, machine: str | None
+        conversation_id: str,
+        run_id: str,
+        model: str | None,
+        machine: str | None,
+        caller: str | None,
     ) -> dict[str, Any]:
-        result = started(conversation_id, run_id)
+        result = started(conversation_id, run_id, caller)
         note = app.settings_note(model, machine)
         if note:
             result["settings_note"] = note
@@ -638,6 +663,7 @@ def build_server(app: App) -> MCPServer:
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
         workspace: FilesWorkspace = None,
         consent: FilesConsent = None,
+        caller: Caller = None,
     ) -> dict[str, Any]:
         conversation_id = str(uuid.uuid4())
         run_id = await send(
@@ -650,7 +676,7 @@ def build_server(app: App) -> MCPServer:
         )
         if app.open_browser:
             webbrowser.open(app.target.conversation_url(conversation_id))
-        return started_new(conversation_id, run_id, model, machine)
+        return started_new(conversation_id, run_id, model, machine, caller)
 
     @tool(description=SEND_MESSAGE + wake)
     async def send_message(
@@ -663,10 +689,11 @@ def build_server(app: App) -> MCPServer:
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
         workspace: FilesWorkspace = None,
         consent: FilesConsent = None,
+        caller: Caller = None,
     ) -> dict[str, Any]:
         settings = {"mode": mode, "model": model, "provider": provider}
         run_id = await send(conversation_id, content, files, settings, workspace, consent)
-        return started(conversation_id, run_id)
+        return started(conversation_id, run_id, caller)
 
     @tool(description=ANSWER_QUESTIONS + wake)
     async def answer_questions(
@@ -674,9 +701,10 @@ def build_server(app: App) -> MCPServer:
         run_id: Id,
         answers: list[Answer],
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
+        caller: Caller = None,
     ) -> dict[str, Any]:
         resumed = await runs.answer(app.client, conversation_id, run_id, list(map(dict, answers)))
-        return started(conversation_id, resumed)
+        return started(conversation_id, resumed, caller)
 
     @tool()
     async def list_options() -> dict[str, Any]:
@@ -765,6 +793,7 @@ def build_server(app: App) -> MCPServer:
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
         workspace: FilesWorkspace = None,
         consent: FilesConsent = None,
+        caller: Caller = None,
     ) -> dict[str, Any]:
         conversation_id = str(uuid.uuid4())
         settings = {
@@ -774,15 +803,17 @@ def build_server(app: App) -> MCPServer:
         run_id = await send(conversation_id, None, files, settings, workspace, consent)
         if app.open_browser:
             webbrowser.open(app.target.conversation_url(conversation_id))
-        return started_new(conversation_id, run_id, model, machine)
+        return started_new(conversation_id, run_id, model, machine, caller)
 
     @tool(description=RUN_PLAN + wake)
     async def run_plan(
         conversation_id: Id,
         scope: Literal["next", "all"] = "all",
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
+        caller: Caller = None,
     ) -> dict[str, Any]:
-        return started(conversation_id, await plan.run(app.client, conversation_id, scope))
+        run_id = await plan.run(app.client, conversation_id, scope)
+        return started(conversation_id, run_id, caller)
 
     @tool(description=wait_description, capped=True)
     async def wait_for_result(
@@ -790,6 +821,7 @@ def build_server(app: App) -> MCPServer:
         run_id: Id,
         timeout_s: int | None = None,
         wake_after_minutes: int = WAKE_AFTER_MINUTES,
+        caller: Caller = None,
     ) -> dict[str, Any]:
         if app.antigravity:
             if timeout_s is not None:
@@ -797,7 +829,11 @@ def build_server(app: App) -> MCPServer:
             else:
                 minutes = max(1, min(wake_after_minutes, MAX_WAKE_MINUTES))
                 window = float(minutes * 60)
+            if app.unwaited_dir is not None and caller:
+                unwaited.clear(app.unwaited_dir, caller, run_id)
             ended = await runs.wait_window(app.client, conversation_id, run_id, window)
+            if ended.outcome == runs.RUNNING:
+                unwaited_run(caller, conversation_id, run_id)
             return outcome(conversation_id, ended)
         requested = MAX_WAIT_SECONDS if timeout_s is None else timeout_s
         timeout = max(0, min(requested, MAX_WAIT_SECONDS))

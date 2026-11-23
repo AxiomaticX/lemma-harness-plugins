@@ -15,6 +15,7 @@ dependencies = [
 [project.scripts]
 lemma-mcp = "lemma_mcp.server:main"
 lemma-wake = "lemma_mcp.wake:main"
+lemma-unwaited = "lemma_mcp.unwaited:main"
 
 [dependency-groups]
 dev = [

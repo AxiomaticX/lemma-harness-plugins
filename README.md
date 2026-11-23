@@ -29,9 +29,10 @@ and `max_tool_output_chars`, with the values listed in the
 `LEMMA_DEFAULT_MACHINE` and `LEMMA_MAX_TOOL_OUTPUT_CHARS` in the environment that starts
 Antigravity override the saved values.
 
-Antigravity has no hook to wake the agent when a run ends, so `wait_for_result` runs in the
-background with no time limit and wakes the agent when the run ends, or after
-`wake_after_minutes` (60 by default) with outcome `running`.
+In Antigravity, `wait_for_result` runs in the background with no time limit and wakes the agent
+when the run ends, or after `wake_after_minutes` (60 by default) with outcome `running`. The
+agent can't end its turn while a run it started has no wait on it: the plugin's stop hook sends
+it back to call `wait_for_result`.
 
 To work on the plugins, see [CONTRIBUTING.md](CONTRIBUTING.md). Licensed under the
 [MIT License](LICENSE).

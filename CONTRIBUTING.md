@@ -10,7 +10,10 @@ are also named `lemma`. Users call the skill as `/lemma`; its full name in Claud
 - `.mcp.json`: a local stdio MCP server, run with `uv` from `server/`.
 - `.antigravity-plugin/plugin.json` and `mcp_config.json`: the Antigravity manifest and its MCP
   server, which sets `LEMMA_HARNESS=antigravity` and runs `wait_for_result` in the background
-  with no timeout, since Antigravity has no wake-up hook.
+  with no timeout, since Antigravity hooks can't wait in the background.
+- `hooks.json`: Antigravity's hooks. When the agent's turn ends while a run it started has no
+  `wait_for_result` on it, a stop hook sends the agent back to call it. The server records those
+  runs under the Antigravity conversation id, in the plugin's data folder.
 - `README.md` and `LICENSE`: the user guide and license the plugin directory reads from this
   folder.
 - `hooks/hooks.json`: after `send_message` or a `wait_for_result` that found the run still going,
