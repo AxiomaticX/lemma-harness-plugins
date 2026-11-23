@@ -509,7 +509,7 @@ def build_server(app: App) -> MCPServer:
     instructions = BACKGROUND_INSTRUCTIONS if app.background_wait else INSTRUCTIONS
     wake = BACKGROUND_WAKE if app.background_wait else WAKE
     wait_description = BACKGROUND_WAIT_FOR_RESULT if app.background_wait else WAIT_FOR_RESULT
-    server = MCPServer("handoff", instructions=f"{instructions} {UNTRUSTED}")
+    server = MCPServer("lemma", instructions=f"{instructions} {UNTRUSTED}")
 
     async def reported(fn: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
         try:

@@ -927,3 +927,16 @@ async def test_env_vars_override_saved_config_and_configure_reports_them(
 
     shown = _structured(await build_server(loaded).call_tool("configure", {}))
     assert shown["env_overrides"] == ["LEMMA_DEFAULT_MACHINE"]
+
+
+async def test_the_wake_hook_matches_the_tools_the_plugin_serves(app: App):
+    plugin = Path(__file__).parents[2]
+    name = json.loads((plugin / ".claude-plugin" / "plugin.json").read_text())["name"]
+    (server_key,) = json.loads((plugin / ".mcp.json").read_text())["mcpServers"]
+    hooks = json.loads((plugin / "hooks" / "hooks.json").read_text())
+    (matcher,) = [entry["matcher"] for entry in hooks["hooks"]["PostToolUse"]]
+
+    prefix = f"mcp__plugin_{name}_{server_key}__"
+    assert matcher.startswith(f"{prefix}(") and matcher.endswith(")")
+    served = {tool.name for tool in await build_server(app).list_tools()}
+    assert set(matcher[len(prefix) + 1 : -1].split("|")) <= served

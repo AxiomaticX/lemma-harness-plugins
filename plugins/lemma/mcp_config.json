@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "handoff": {
+    "lemma": {
       "command": "uv",
       "args": ["run", "--frozen", "--no-dev", "--quiet", "--project", "${PLUGIN_ROOT}/server", "lemma-mcp"],
       "env": {
