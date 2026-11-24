@@ -36,6 +36,8 @@ agy plugin install https://github.com/AxiomaticX/lemma-harness-plugins/tree/main
 
 If Lemma's tools don't appear after installing, restart Antigravity.
 
+To update Lemma, run the install command you used again, then restart Antigravity.
+
 ## Sign in
 
 The first time Antigravity uses Lemma, your browser opens to the Lemma sign-in page. Sign in with
@@ -185,6 +187,8 @@ agy plugin uninstall lemma
 ```
 
 You stay signed in to Lemma, and your settings in `~/.lemma-mcp/config.json` are kept.
+Uninstalling deletes the plugin's data folder, including the `workspace` folder used when no
+folder is open.
 
 ## Support
 
