@@ -404,7 +404,7 @@ async def test_the_files_list_marks_the_notebooks(app: App, api):
 async def test_a_lemma_failure_reaches_the_agent_as_its_own_message(app: App, api):
     api.post("https://api.test/conversations/c1/messages").mock(return_value=httpx.Response(409))
 
-    with pytest.raises(ToolError, match="still working on this conversation"):
+    with pytest.raises(ToolError, match="still working on this session"):
         await build_server(app).call_tool(
             "send_message", {"content": "go", "conversation_id": "c1"}
         )

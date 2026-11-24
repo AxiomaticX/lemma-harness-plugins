@@ -1,4 +1,4 @@
-"""What the signed-in user can choose for a conversation: models and machines."""
+"""What the signed-in user can choose for a session: models and machines."""
 
 from typing import Any
 
@@ -16,5 +16,5 @@ async def workflows(client: LemmaClient) -> list[dict[str, Any]]:
 
 
 async def machines(client: LemmaClient) -> list[dict[str, Any]]:
-    """The machines a conversation can start on, with their size and cost."""
+    """The machines a session can start on, with their size and cost."""
     return (await client.request("GET", "/users/me/available-sandbox-types")).json()

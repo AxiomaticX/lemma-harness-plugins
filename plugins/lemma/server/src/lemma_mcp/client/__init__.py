@@ -90,7 +90,7 @@ def raise_for_status(response: httpx.Response) -> None:
             raise NotLoggedInError("Lemma did not accept the sign-in. Call the login tool.")
         case 404:
             raise NotFoundError(
-                _server_detail(response) or "Lemma has no such conversation, run or file."
+                _server_detail(response) or "Lemma has no such session, run or file."
             )
         case 409:
             refused = _server_detail(response)

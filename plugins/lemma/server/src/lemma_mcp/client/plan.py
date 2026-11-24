@@ -1,4 +1,4 @@
-"""A conversation's plan: read, edit, answer, approve, review and run it, and manage its tasks."""
+"""A session's plan: read, edit, answer, approve, review and run it, and manage its tasks."""
 
 from typing import Any
 

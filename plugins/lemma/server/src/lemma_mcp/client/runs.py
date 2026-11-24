@@ -1,4 +1,4 @@
-"""Starting a run on a conversation, reading how it ended, and waiting for it."""
+"""Starting a run on a session, reading how it ended, and waiting for it."""
 
 import asyncio
 import time
@@ -35,7 +35,7 @@ async def send(
     file_ids: list[str],
     options: dict[str, Any],
 ) -> str:
-    """Start the conversation's next run with one message; returns the run id."""
+    """Start the session's next run with one message; returns the run id."""
     message = {"content": content} if content is not None else {}
     response = await client.request(
         "POST",
@@ -61,7 +61,7 @@ async def result(client: LemmaClient, conversation_id: str, run_id: str) -> RunR
 async def answer(
     client: LemmaClient, conversation_id: str, run_id: str, answers: list[dict[str, Any]]
 ) -> str:
-    """Answer what a run stopped on; the conversation goes on in the new run whose id comes back."""
+    """Answer what a run stopped on; the session goes on in the new run whose id comes back."""
     response = await client.request(
         "POST",
         f"/conversations/{conversation_id}/runs/{run_id}/answers",

@@ -5,7 +5,7 @@ description: Hand a research or computing task in science and engineering to Lem
 
 # Working with Lemma
 
-Lemma is a separate agent that works in its own conversation, on its own machine, under the
+Lemma is a separate agent that works in its own session, on its own machine, under the
 user's Lemma account. Each message you send starts a run, and the usage is charged to that
 account, the same as a message typed in the browser.
 
@@ -19,44 +19,44 @@ ended. Everything they learn about Lemma comes from what you tell them.
   Pass the note on as it is.
 - When a run ends, tell them its outcome and what Lemma answered, in your own words.
 - When a call fails, pass Lemma's message on as it is, such as a model it refused, a plan that
-  has run out, or a conversation that is busy, before you decide what to do next. Never retry
+  has run out, or a session that is busy, before you decide what to do next. Never retry
   with different options without saying so.
 
 ## Hand work over
 
-Start a conversation with `create_conversation`, writing the task as you would brief a
+Start a session with `create_conversation`, writing the task as you would brief a
 colleague: the goal, what you already know, and what a good result looks like. Continue it with
-`send_message` and the conversation's id.
+`send_message` and the session's id.
 
 - `mode` is required when you start: `act` to work straight away, or `plan` to have Lemma draft a
   plan the user approves before any work runs. Use `plan` when the user asks for it, or for a
-  long or costly study they should shape first. A conversation keeps its mode; pass `mode` to
+  long or costly study they should shape first. A session keeps its mode; pass `mode` to
   `send_message` only to change it.
 - `model` is the tier and `provider` who runs it. Left out when you start, `model`, `provider`
-  and `machine` come from the user's defaults; left out of `send_message`, the conversation
+  and `machine` come from the user's defaults; left out of `send_message`, the session
   keeps its own. `list_options` shows the tiers the user can choose, the tiers each provider
-  runs, and what each machine costs. The machine is fixed once a conversation starts. Choose
+  runs, and what each machine costs. The machine is fixed once a session starts. Choose
   any of these only when the user asks.
 - Pass local files in `files`, as paths. Relative paths resolve against the project directory.
-  They are uploaded first and land in the conversation's workspace.
+  They are uploaded first and land in the session's workspace.
   Files outside the workspace, the project and `LEMMA_ALLOWED_DIRS` are sent only once the user
   allows it in a prompt; hidden ones such as `.env` or `.ssh` never are. If a file is refused,
   tell the user why; do not retry it or copy it somewhere else to get around it.
 
 Both return `conversation_id`, `run_id` and `url`. Keep all three.
 
-## Pick up an earlier conversation
+## Pick up an earlier session
 
-When the user refers to a Lemma conversation without its URL, such as "the Monte Carlo session",
+When the user refers to a Lemma session without its URL, such as "the Monte Carlo session",
 find it with `find_conversations`, searching with the distinctive words they used. When they mean
 a recent one but give nothing to search for, such as "what I was doing in Lemma yesterday", use
 `list_conversations`, which lists them by when they were last active. `shared_by` marks one a
 colleague shared.
 
-- One clear match: tell the user which conversation it is, by its title and when it was last
+- One clear match: tell the user which session it is, by its title and when it was last
   active. Several plausible matches: ask the user which one they mean. No match: say the search
-  found nothing, not that the conversation does not exist, and try other words they give you. Do
-  not start a new conversation unless they ask.
+  found nothing, not that the session does not exist, and try other words they give you. Do
+  not start a new session unless they ask.
 - Before you send to it, read it with `read_conversation`. It returns the latest 10 messages,
   newest first; raise `index` by the page size to go further back, only as far as the next
   message needs, or pass `order` `oldest` to read from the start. Then write that message from
@@ -141,8 +141,8 @@ Runs take minutes, and long ones take hours. Do not poll in a loop.
 | `waiting_for_input` | Lemma needs a decision only the user can make; `questions` holds it. | Ask the user, then `answer_questions` with their decision. In plan mode, check `get_plan` for reviews too. |
 | `no_answer` | The run ended without a reply. | Give the user `url` to see what happened. |
 
-Only one run can be active in a conversation. If `send_message` says the conversation is busy,
-wait for the current run first, or start a new conversation.
+Only one run can be active in a session. If `send_message` says the session is busy,
+wait for the current run first, or start a new session.
 
 ## Long results
 
@@ -153,7 +153,7 @@ note at the end. To get the rest, call the same tool again with the same argumen
 
 ## Bring results back
 
-- `list_files` shows the conversation's files, including those Lemma produced. `ready` is false
+- `list_files` shows the session's files, including those Lemma produced. `ready` is false
   while one is still being written. `notebook` marks a notebook, such as a plan's results:
   it is best read in the browser, so offer `open_in_browser`.
 - `download_file` saves one by name or id into a local directory and returns the saved path. It
@@ -161,10 +161,10 @@ note at the end. To get the rest, call the same tool again with the same argumen
 
 ## Hand over to the user
 
-`url` opens the same conversation in Lemma in the browser, where the user can read every step
+`url` opens the same session in Lemma in the browser, where the user can read every step
 and continue it themselves. Offer it whenever the user should see or steer the work.
 
-When the user asks to see a conversation, call `open_in_browser` with its id. If it returns
+When the user asks to see a session, call `open_in_browser` with its id. If it returns
 `opened` false, no browser could be opened: give them `url` instead.
 
 ## Sign-in
