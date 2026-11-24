@@ -1,12 +1,19 @@
 # Contributing
 
-This repository is the `axiomatic-ai` Claude Code marketplace. It holds one plugin,
-`lemma`, in `plugins/lemma/`. Its skill and MCP server are also named `lemma`. Users call the
-skill as `/lemma`; its full name in Claude Code is `lemma:lemma`.
+This repository is the `axiomatic-ai` Claude Code marketplace, and holds the same plugin for
+Google Antigravity. It holds one plugin, `lemma`, in `plugins/lemma/`. Its skill and MCP server
+are also named `lemma`. Users call the skill as `/lemma`; its full name in Claude Code is
+`lemma:lemma`.
 
 ## What the plugin contains
 
 - `.mcp.json`: a local stdio MCP server, run with `uv` from `server/`.
+- `.antigravity-plugin/plugin.json` and `mcp_config.json`: the Antigravity manifest and its MCP
+  server, which sets `LEMMA_HARNESS=antigravity` and runs `wait_for_result` in the background
+  with no timeout, since Antigravity hooks can't wait in the background.
+- `hooks.json`: Antigravity's hooks. When the agent's turn ends while a run it started has no
+  `wait_for_result` on it, a stop hook sends the agent back to call it. The server records those
+  runs under the Antigravity conversation id, in the plugin's data folder.
 - `README.md` and `LICENSE`: the user guide and license the plugin directory reads from this
   folder.
 - `hooks/hooks.json`: after `send_message` or a `wait_for_result` that found the run still going,
@@ -39,4 +46,15 @@ To try a local checkout, add the repository directory as a marketplace:
 ```
 /plugin marketplace add /path/to/lemma-harness-plugins
 /plugin install lemma@axiomatic-ai
+```
+
+In Antigravity, check the plugin folder (not the repository root `.`) and install a local
+checkout. Two warnings are expected, for Claude Code's `.mcp.json` and `hooks/hooks.json`, which
+Antigravity ignores because both harnesses share `plugins/lemma/`. So run it without `--strict`,
+which still fails on any error. Remove `server/.venv` first if you ran `uv sync`, as
+`agy plugin install` rejects symlinks that point outside the plugin folder:
+
+```bash
+agy plugin validate plugins/lemma
+agy plugin install /path/to/lemma-harness-plugins/plugins/lemma
 ```

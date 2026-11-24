@@ -1,13 +1,14 @@
-"""Starting a run on a conversation, reading how it ended, and waiting for it."""
+"""Starting a run on a session, reading how it ended, and waiting for it."""
 
 import asyncio
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
-from ..errors import LemmaError
+from ..errors import LemmaError, ServerError
 from . import LemmaClient
 
 RUNNING = "running"
@@ -16,6 +17,8 @@ SEND_READ_TIMEOUT_SECONDS = 75.0
 STREAM_READ_TIMEOUT_SECONDS = 90.0
 MIN_STREAM_SECONDS = 5.0
 POLL_SECONDS = 5.0
+CHUNK_SECONDS = 600.0
+RETRY_SECONDS = 60.0
 
 
 @dataclass(frozen=True)
@@ -32,7 +35,7 @@ async def send(
     file_ids: list[str],
     options: dict[str, Any],
 ) -> str:
-    """Start the conversation's next run with one message; returns the run id."""
+    """Start the session's next run with one message; returns the run id."""
     message = {"content": content} if content is not None else {}
     response = await client.request(
         "POST",
@@ -58,7 +61,7 @@ async def result(client: LemmaClient, conversation_id: str, run_id: str) -> RunR
 async def answer(
     client: LemmaClient, conversation_id: str, run_id: str, answers: list[dict[str, Any]]
 ) -> str:
-    """Answer what a run stopped on; the conversation goes on in the new run whose id comes back."""
+    """Answer what a run stopped on; the session goes on in the new run whose id comes back."""
     response = await client.request(
         "POST",
         f"/conversations/{conversation_id}/runs/{run_id}/answers",
@@ -86,6 +89,32 @@ async def wait(client: LemmaClient, conversation_id: str, run_id: str, timeout: 
             pass
         if time.monotonic() - started < MIN_STREAM_SECONDS:
             await asyncio.sleep(min(POLL_SECONDS, max(0.0, deadline - time.monotonic())))
+
+
+async def wait_window(
+    client: LemmaClient,
+    conversation_id: str,
+    run_id: str,
+    window: float,
+    *,
+    chunk_seconds: float = CHUNK_SECONDS,
+    retry_seconds: float = RETRY_SECONDS,
+    wait_fn: Callable[[LemmaClient, str, str, float], Awaitable[RunResult]] = wait,
+) -> RunResult:
+    """Follow a run in chunks across ``window`` seconds, retrying network failures and Lemma's
+    own (5xx) errors; any other failure is raised at once."""
+    if window <= 0:
+        return await wait_fn(client, conversation_id, run_id, 0.0)
+    deadline = time.monotonic() + window
+    while (remaining := deadline - time.monotonic()) > 0:
+        try:
+            ended = await wait_fn(client, conversation_id, run_id, min(remaining, chunk_seconds))
+        except (httpx.TransportError, ServerError):
+            await asyncio.sleep(min(retry_seconds, max(0.0, deadline - time.monotonic())))
+            continue
+        if ended.outcome != RUNNING:
+            return ended
+    return RunResult(RUNNING, None)
 
 
 async def _follow_stream(client: LemmaClient, conversation_id: str) -> None:

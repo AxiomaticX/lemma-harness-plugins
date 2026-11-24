@@ -3,19 +3,16 @@
 import asyncio
 import json
 import sys
-import time
 from typing import Any
 
 from .auth import Session
 from .client import LemmaClient
-from .client.runs import RUNNING, wait
+from .client.runs import CHUNK_SECONDS, RETRY_SECONDS, RUNNING, wait, wait_window
 from .config import TARGET, data_dir
-from .errors import NotFoundError, NotLoggedInError
+from .errors import LemmaError
 
 DEFAULT_MINUTES = 60
 MAX_MINUTES = 23 * 60
-CHUNK_SECONDS = 600.0
-RETRY_SECONDS = 60.0
 WAKE_CLAUDE = 2
 
 
@@ -57,32 +54,41 @@ def _structured(response: Any) -> dict[str, Any]:
 
 def finished_line(conversation_id: str, run_id: str, outcome: str) -> str:
     return (
-        f"Lemma run {run_id} in conversation {conversation_id} finished: {outcome}. "
+        f"Lemma run {run_id} in session {conversation_id} finished: {outcome}. "
         "Read it with get_result."
     )
 
 
 def still_running_line(conversation_id: str, run_id: str, seconds: float) -> str:
     return (
-        f"Lemma run {run_id} in conversation {conversation_id} is still running after "
+        f"Lemma run {run_id} in session {conversation_id} is still running after "
         f"{round(seconds / 60)} minutes. Call wait_for_result to keep waiting, with "
         "wake_after_minutes set higher if it will take hours."
     )
 
 
+def stopped_line(conversation_id: str, run_id: str, why: str) -> str:
+    return f"Stopped waiting for Lemma run {run_id} in session {conversation_id}: {why}"
+
+
 async def follow(client: LemmaClient, conversation_id: str, run_id: str, window: float) -> str:
     """The line to wake Claude with: how the run ended, or that it is still going."""
-    deadline = time.monotonic() + window
-    while (remaining := deadline - time.monotonic()) > 0:
-        try:
-            ended = await wait(client, conversation_id, run_id, min(remaining, CHUNK_SECONDS))
-        except (NotFoundError, NotLoggedInError) as e:
-            return f"Stopped waiting for Lemma run {run_id} in conversation {conversation_id}: {e}"
-        except Exception:
-            await asyncio.sleep(min(RETRY_SECONDS, max(0.0, deadline - time.monotonic())))
-            continue
-        if ended.outcome != RUNNING:
-            return finished_line(conversation_id, run_id, ended.outcome)
+    try:
+        ended = await wait_window(
+            client,
+            conversation_id,
+            run_id,
+            window,
+            chunk_seconds=CHUNK_SECONDS,
+            retry_seconds=RETRY_SECONDS,
+            wait_fn=wait,
+        )
+    except LemmaError as e:
+        return stopped_line(conversation_id, run_id, str(e))
+    except Exception:
+        return stopped_line(conversation_id, run_id, "Lemma's reply could not be read.")
+    if ended.outcome != RUNNING:
+        return finished_line(conversation_id, run_id, ended.outcome)
     return still_running_line(conversation_id, run_id, window)
 
 

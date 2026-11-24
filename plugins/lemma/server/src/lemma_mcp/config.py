@@ -1,9 +1,15 @@
-"""Where Lemma lives, how the plugin signs in to it, and where it keeps its sign-in lock."""
+"""Where Lemma lives, how the plugin signs in to it, where it keeps its sign-in lock, and
+persistent plugin settings."""
 
+import json
 import os
 import re
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+
+CONFIG_FILENAME = "config.json"
 
 
 @dataclass(frozen=True)
@@ -45,3 +51,30 @@ def find_choice[V](choices: dict[str, V], typed: str | None) -> V | None:
     """The choice whose label matches what the user typed, or None."""
     wanted = choice_key(typed or "")
     return next((value for label, value in choices.items() if choice_key(label) == wanted), None)
+
+
+def load_settings(data_dir: Path) -> dict[str, Any]:
+    """Read saved plugin settings from ``data_dir/config.json``; empty if missing or invalid."""
+    path = data_dir / CONFIG_FILENAME
+    if not path.exists():
+        return {}
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def save_settings(data_dir: Path, updates: dict[str, Any]) -> dict[str, Any]:
+    """Merge ``updates`` into ``data_dir/config.json`` atomically and return the stored settings."""
+    data_dir.mkdir(parents=True, exist_ok=True)
+    merged = {**load_settings(data_dir), **updates}
+    fd, tmp = tempfile.mkstemp(dir=data_dir, prefix=f".{CONFIG_FILENAME}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(merged, indent=2) + "\n")
+        os.replace(tmp, data_dir / CONFIG_FILENAME)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+    return merged

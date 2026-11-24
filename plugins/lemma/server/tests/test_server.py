@@ -10,6 +10,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ElicitResult, ListRootsResult, Root
 
 from lemma_mcp.client import LemmaClient
+from lemma_mcp.client.runs import RunResult
 from lemma_mcp.server import App, build_server
 
 
@@ -403,7 +404,7 @@ async def test_the_files_list_marks_the_notebooks(app: App, api):
 async def test_a_lemma_failure_reaches_the_agent_as_its_own_message(app: App, api):
     api.post("https://api.test/conversations/c1/messages").mock(return_value=httpx.Response(409))
 
-    with pytest.raises(ToolError, match="still working on this conversation"):
+    with pytest.raises(ToolError, match="still working on this session"):
         await build_server(app).call_tool(
             "send_message", {"content": "go", "conversation_id": "c1"}
         )
@@ -668,6 +669,69 @@ def test_files_come_only_from_the_project_or_the_allowed_folders(app: App, tmp_p
             scoped.local_path(raw)
 
 
+def test_the_fallback_folder_counts_only_when_the_client_reports_no_workspace(
+    app: App, tmp_path: Path
+):
+    workspace, fallback = tmp_path / "workspace", tmp_path / "plugin-data" / "workspace"
+    workspace.mkdir()
+    unrooted = replace(app, project_dir=None, fallback_dir=fallback)
+
+    assert unrooted.locate("data.csv", (workspace,)) == (workspace.resolve() / "data.csv", True)
+    assert unrooted.locate(str(fallback / "x"), (workspace,))[1] is False
+    assert unrooted.locate("x", ()) == (fallback.resolve() / "x", True)
+    assert fallback.is_dir()
+
+
+@pytest.mark.parametrize(
+    ("project", "plugin_data", "expected_project", "expected_fallback"),
+    [
+        ("/work/proj", "/data/lemma", Path("/work/proj"), Path("/data/lemma/workspace")),
+        (None, "/data/lemma", None, Path("/data/lemma/workspace")),
+        (None, None, None, Path.cwd()),
+    ],
+)
+def test_from_env_takes_the_project_from_claude_and_the_fallback_from_plugin_data(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    project: str | None,
+    plugin_data: str | None,
+    expected_project: Path | None,
+    expected_fallback: Path,
+):
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    for name, value in (("CLAUDE_PROJECT_DIR", project), ("PLUGIN_DATA", plugin_data)):
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+
+    loaded = App.from_env()
+
+    assert loaded.project_dir == expected_project
+    assert loaded.fallback_dir == expected_fallback
+
+
+@pytest.mark.parametrize("reported", [True, False])
+async def test_a_relative_output_file_lands_in_the_workspace_the_client_reports(
+    app: App, api, tmp_path: Path, reported: bool
+):
+    _long_transcript(api, 50)
+    workspace, fallback = tmp_path / "workspace", tmp_path / "plugin-data" / "workspace"
+    workspace.mkdir()
+    unrooted = replace(app, project_dir=None, fallback_dir=fallback)
+
+    async def roots(_context):
+        return ListRootsResult(roots=[Root(uri=workspace.as_uri())] if reported else [])
+
+    async with Client(build_server(unrooted), list_roots_callback=roots) as client:
+        await client.call_tool(
+            "read_conversation", {"conversation_id": "c1", "output_file": "page.json"}
+        )
+
+    landed = (workspace if reported else fallback) / "page.json"
+    assert json.loads(landed.read_text())["messages"][0]["text"] == "x" * 50
+
+
 async def test_an_upload_from_outside_the_project_never_reaches_lemma(app: App, api, tmp_path):
     with pytest.raises(ToolError, match="outside the project"):
         await build_server(app).call_tool(
@@ -783,8 +847,85 @@ async def test_saving_outside_the_project_asks_the_user_first(app: App, api, tmp
 async def test_the_agent_cannot_supply_the_workspace_or_the_consent(app: App):
     tools = {tool.name: tool for tool in await build_server(app).list_tools()}
 
-    for name in ["create_conversation", "send_message", "start_workflow", "download_file"]:
+    for name in [
+        "create_conversation",
+        "send_message",
+        "start_workflow",
+        "download_file",
+        "read_conversation",
+        "find_conversations",
+        "list_conversations",
+        "get_plan",
+        "get_result",
+        "wait_for_result",
+    ]:
         assert not {"workspace", "consent"} & set(tools[name].input_schema["properties"])
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_output_file_in_the_client_workspace_is_saved_there(
+    app: App, api, tmp_path: Path, mode: str
+):
+    workspace = _beside(tmp_path, "workspace")
+    _long_transcript(api, 50)
+    elicit, asked = _answering("decline")
+
+    async def roots(_context):
+        return ListRootsResult(roots=[Root(uri=workspace.as_uri())])
+
+    async with Client(
+        build_server(app), mode=mode, list_roots_callback=roots, elicitation_callback=elicit
+    ) as client:
+        result = await client.call_tool(
+            "read_conversation", {"conversation_id": "c1", "output_file": "page.json"}
+        )
+
+    assert not result.is_error, result
+    assert not asked
+    assert json.loads((workspace / "page.json").read_text())["messages"][0]["text"] == "x" * 50
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_output_file_outside_the_workspace_asks_the_user_first(
+    app: App, api, tmp_path: Path, mode: str
+):
+    outside = _beside(tmp_path, "outside") / "page.json"
+    _long_transcript(api, 50)
+    elicit, asked = _answering("accept")
+
+    async with Client(build_server(app), mode=mode, elicitation_callback=elicit) as client:
+        result = await client.call_tool(
+            "read_conversation", {"conversation_id": "c1", "output_file": str(outside)}
+        )
+
+    assert not result.is_error, result
+    assert len(asked) == 1 and str(outside) in asked[0]
+    assert json.loads(outside.read_text())["messages"][0]["text"] == "x" * 50
+
+
+async def test_declined_output_file_outside_never_calls_lemma(app: App, api, tmp_path: Path):
+    outside = _beside(tmp_path, "outside") / "page.json"
+    elicit, asked = _answering("decline")
+
+    async with Client(build_server(app), elicitation_callback=elicit) as client:
+        result = await client.call_tool(
+            "read_conversation", {"conversation_id": "c1", "output_file": str(outside)}
+        )
+
+    assert result.is_error and "did not allow" in result.content[0].text
+    assert asked and not api.calls and not outside.exists()
+
+
+async def test_a_hidden_output_file_is_refused_without_asking(app: App, api, tmp_path: Path):
+    elicit, asked = _answering("accept")
+
+    async with Client(build_server(app), elicitation_callback=elicit) as client:
+        result = await client.call_tool(
+            "read_conversation", {"conversation_id": "c1", "output_file": ".secret.json"}
+        )
+
+    assert result.is_error and "hidden" in result.content[0].text
+    assert not asked and not api.calls
 
 
 async def test_what_lemma_returns_is_marked_as_data_not_instructions(app: App):
@@ -796,6 +937,204 @@ def test_from_env_reads_the_allowed_folders(monkeypatch: pytest.MonkeyPatch, tmp
     monkeypatch.setenv("LEMMA_ALLOWED_DIRS", f"/data/a{os.pathsep}/data/b")
 
     assert App.from_env().allowed_dirs == (Path("/data/a"), Path("/data/b"))
+
+
+@pytest.mark.parametrize(("harness", "antigravity"), [("antigravity", True), ("", False)])
+def test_from_env_knows_when_it_runs_under_antigravity(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, harness: str, antigravity: bool
+):
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("LEMMA_HARNESS", harness)
+
+    assert App.from_env().antigravity is antigravity
+
+
+async def test_antigravity_mode_guides_background_wait_and_follows_wake_window(
+    app: App, monkeypatch: pytest.MonkeyPatch
+):
+    recorded: list[tuple[str, str, float]] = []
+
+    async def fake_wait_window(_client, conversation_id: str, run_id: str, window: float):
+        recorded.append((conversation_id, run_id, window))
+        return RunResult("answered", "done")
+
+    monkeypatch.setattr("lemma_mcp.server.runs.wait_window", fake_wait_window)
+    server = build_server(replace(app, antigravity=True))
+
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    assert "wait_for_result" in (server.instructions or "")
+    assert "Call wait_for_result next" in (tools["create_conversation"].description or "")
+    assert "Wait in the background" in (tools["wait_for_result"].description or "")
+
+    result = _structured(
+        await server.call_tool(
+            "wait_for_result",
+            {"conversation_id": "c1", "run_id": "r1", "wake_after_minutes": 120},
+        )
+    )
+    await server.call_tool(
+        "wait_for_result",
+        {"conversation_id": "c1", "run_id": "r1", "timeout_s": 45},
+    )
+
+    assert result["outcome"] == "answered"
+    assert result["answer"] == "done"
+    assert recorded == [("c1", "r1", 7200.0), ("c1", "r1", 45.0)]
+
+
+async def test_claude_mode_wait_for_result_uses_foreground_timeout(
+    app: App, monkeypatch: pytest.MonkeyPatch
+):
+    seen: list[float] = []
+
+    async def fake_wait(_client, _conversation_id: str, _run_id: str, timeout: float):
+        seen.append(timeout)
+        return RunResult("running", None)
+
+    monkeypatch.setattr("lemma_mcp.server.runs.wait", fake_wait)
+    server = build_server(app)
+
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    assert "You are woken when the run ends" in (tools["create_conversation"].description or "")
+
+    await server.call_tool("wait_for_result", {"conversation_id": "c1", "run_id": "r1"})
+    await server.call_tool(
+        "wait_for_result", {"conversation_id": "c1", "run_id": "r1", "timeout_s": 0}
+    )
+
+    assert seen == [600, 0]
+
+
+SETTING_ENV_VARS = (
+    "LEMMA_OPEN_BROWSER",
+    "LEMMA_DEFAULT_MODEL",
+    "LEMMA_DEFAULT_MACHINE",
+    "LEMMA_MAX_TOOL_OUTPUT_CHARS",
+)
+
+
+async def test_configure_persists_settings_and_applies_them_live(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    for name in SETTING_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("LEMMA_HARNESS", "antigravity")
+
+    loaded = App.from_env()
+    server = build_server(loaded)
+
+    initial = _structured(await server.call_tool("configure", {}))
+    assert initial == {
+        "open_browser": True,
+        "default_model": "Lemma's default",
+        "default_machine": "Lemma's default",
+        "max_tool_output_chars": 40_000,
+        "config_path": str(tmp_path / "config.json"),
+    }
+    assert not (tmp_path / "config.json").exists()
+
+    updated = _structured(
+        await server.call_tool(
+            "configure",
+            {
+                "open_browser": False,
+                "default_model": "Anthropic · Pro",
+                "default_machine": "GPU",
+                "max_tool_output_chars": 5000,
+            },
+        )
+    )
+    assert updated == {
+        "open_browser": False,
+        "default_model": "Anthropic · Pro",
+        "default_machine": "GPU",
+        "max_tool_output_chars": 5000,
+        "config_path": str(tmp_path / "config.json"),
+    }
+    assert loaded.max_output_chars == 5000
+
+    reloaded = App.from_env()
+    assert reloaded.open_browser is False
+    assert reloaded.default_model == ("anthropic", "pro")
+    assert reloaded.default_machine == "gpu"
+    assert reloaded.max_output_chars == 5000
+
+    reset_model = _structured(
+        await server.call_tool("configure", {"default_model": "Lemma's default"})
+    )
+    assert reset_model["default_model"] == "Lemma's default"
+    assert loaded.default_model is None
+    assert App.from_env().mistyped_model is None
+
+    reset_machine = _structured(
+        await server.call_tool("configure", {"default_machine": "Lemma's default"})
+    )
+    assert reset_machine["default_machine"] == "Lemma's default"
+    assert loaded.default_machine is None
+    assert App.from_env().default_machine is None
+    assert App.from_env().mistyped_machine is None
+
+
+async def test_configure_rejects_an_output_cap_below_one(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("LEMMA_HARNESS", "antigravity")
+
+    with pytest.raises(ToolError):
+        await build_server(App.from_env()).call_tool("configure", {"max_tool_output_chars": 0})
+    assert not (tmp_path / "config.json").exists()
+
+
+async def test_env_vars_override_saved_config_and_configure_reports_them(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("LEMMA_HARNESS", "antigravity")
+    (tmp_path / "config.json").write_text(
+        json.dumps({"open_browser": False, "default_machine": "GPU"}), encoding="utf-8"
+    )
+    monkeypatch.setenv("LEMMA_DEFAULT_MACHINE", "Max")
+    monkeypatch.delenv("LEMMA_OPEN_BROWSER", raising=False)
+    monkeypatch.delenv("LEMMA_DEFAULT_MODEL", raising=False)
+    monkeypatch.delenv("LEMMA_MAX_TOOL_OUTPUT_CHARS", raising=False)
+
+    loaded = App.from_env()
+    assert loaded.default_machine == "max"
+    assert loaded.open_browser is False
+
+    shown = _structured(await build_server(loaded).call_tool("configure", {}))
+    assert shown["env_overrides"] == ["LEMMA_DEFAULT_MACHINE"]
+
+
+async def test_claude_code_has_no_configure_and_ignores_saved_settings(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    for name in SETTING_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("LEMMA_HARNESS", raising=False)
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    (tmp_path / "config.json").write_text(
+        json.dumps(
+            {
+                "open_browser": False,
+                "default_model": "Anthropic · Pro",
+                "default_machine": "GPU",
+                "max_tool_output_chars": 5000,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = App.from_env()
+
+    assert loaded.open_browser is True
+    assert loaded.default_model is None
+    assert loaded.default_machine is None
+    assert loaded.max_output_chars == 40_000
+    tools = {tool.name for tool in await build_server(loaded).list_tools()}
+    assert "configure" not in tools
 
 
 async def test_the_wake_hook_matches_the_tools_the_plugin_serves(app: App):

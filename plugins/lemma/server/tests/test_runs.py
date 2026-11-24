@@ -5,6 +5,7 @@ import pytest
 from conftest import TOKEN_URL, token_response
 
 from lemma_mcp.client import LemmaClient, runs
+from lemma_mcp.errors import LemmaError, NotFoundError, ServerError, UsageLimitError
 
 RUN = "https://api.test/conversations/c1/runs/r1"
 STREAM = "https://api.test/conversations/c1/run/stream"
@@ -110,3 +111,65 @@ async def test_the_stream_refreshes_a_rejected_token(client: LemmaClient, api):
 
     assert (await runs.wait(client, "c1", "r1", timeout=60)).answer == "ok"
     assert stream.calls.last.request.headers["Authorization"] == "Bearer at-2"
+
+
+async def test_wait_window_follows_chunks_and_retries_transient_errors(client: LemmaClient):
+    outcomes = iter(
+        [
+            httpx.ConnectError("down"),
+            ServerError("Lemma returned an error: HTTP 503"),
+            runs.RunResult("running", None),
+            runs.RunResult("answered", "7"),
+        ]
+    )
+
+    async def fake_wait(_client, _conversation_id, _run_id, _timeout):
+        item = next(outcomes)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    ended = await runs.wait_window(
+        client, "c1", "r1", 30.0, chunk_seconds=10.0, retry_seconds=0.0, wait_fn=fake_wait
+    )
+
+    assert ended == runs.RunResult("answered", "7")
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        LemmaError("Lemma returned an error: Forbidden"),
+        UsageLimitError(),
+        NotFoundError("No such run."),
+        KeyError("outcome"),
+    ],
+)
+async def test_wait_window_raises_any_other_failure_at_once(
+    client: LemmaClient, failure: Exception
+):
+    calls = 0
+
+    async def fake_wait(_client, _conversation_id, _run_id, _timeout):
+        nonlocal calls
+        calls += 1
+        raise failure
+
+    with pytest.raises(type(failure)):
+        await runs.wait_window(
+            client, "c1", "r1", 30.0, chunk_seconds=10.0, retry_seconds=0.0, wait_fn=fake_wait
+        )
+    assert calls == 1
+
+
+async def test_wait_window_with_zero_window_checks_once(client: LemmaClient):
+    calls: list[float] = []
+
+    async def fake_wait(_client, _conversation_id, _run_id, timeout):
+        calls.append(timeout)
+        return runs.RunResult("running", None)
+
+    ended = await runs.wait_window(client, "c1", "r1", 0.0, wait_fn=fake_wait)
+
+    assert ended.outcome == "running"
+    assert calls == [0.0]

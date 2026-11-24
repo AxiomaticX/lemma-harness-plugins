@@ -1,0 +1,22 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "lemma",
+  "displayName": "Lemma",
+  "version": "0.8.0",
+  "description": "Hand science and engineering work to Lemma: start or resume a session, send files, read the answer, download results, and open it in the browser.",
+  "logo": "assets/icon.png",
+  "suggestedPrompts": [
+    "Ask Lemma to survey recent papers on a research topic and summarize the key findings",
+    "Draft a Lemma plan to analyze data in this workspace and verify the results",
+    "List Lemma's ready-made workflows and run one on a file from this project"
+  ],
+  "author": {
+    "name": "Axiomatic AI",
+    "email": "developers@axiomatic-ai.com",
+    "url": "https://axiomatic.ai"
+  },
+  "homepage": "https://lemma.axiomatic.ai",
+  "repository": "https://github.com/AxiomaticX/lemma-harness-plugins",
+  "license": "MIT",
+  "keywords": ["axiomatic", "lemma", "science", "engineering", "physics"]
+}

@@ -5,7 +5,7 @@ import pytest
 from conftest import TOKEN_URL, token_response
 
 from lemma_mcp.client import LemmaClient
-from lemma_mcp.errors import BusyError, LemmaError, NotFoundError, UsageLimitError
+from lemma_mcp.errors import BusyError, LemmaError, NotFoundError, ServerError, UsageLimitError
 
 
 async def test_calls_carry_the_bearer_token(client: LemmaClient, api):
@@ -61,6 +61,17 @@ async def test_any_other_error_carries_lemmas_detail(client: LemmaClient, api):
 
     with pytest.raises(LemmaError, match="could not be started"):
         await client.request("GET", "/ping")
+
+
+@pytest.mark.parametrize(("status", "server_side"), [(500, True), (503, True), (403, False)])
+async def test_only_lemmas_own_failures_are_server_errors(
+    client: LemmaClient, api, status, server_side
+):
+    api.get("https://api.test/ping").mock(return_value=httpx.Response(status))
+
+    with pytest.raises(LemmaError) as raised:
+        await client.request("GET", "/ping")
+    assert isinstance(raised.value, ServerError) is server_side
 
 
 @pytest.mark.parametrize("path", ["/files/../users/me", "/files/a?b", "/files/a%2F", "/a//b", "x"])

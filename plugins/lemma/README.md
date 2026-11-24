@@ -99,6 +99,7 @@ Change these with `/plugin configure lemma@axiomatic-ai`.
 | Open sessions in the browser | On | Opens each new session in your browser as soon as Claude sends its first message. |
 | Default model | Lemma's default | The model a new session uses when you don't name one. Lemma's default is the model Lemma would use in the browser. The other values are Anthropic Pro Fast, Anthropic Pro, Anthropic Normal, Google Pro, Google Normal, Open-weight Pro, and Open-weight Normal. |
 | Default machine | Standard | The machine a new session runs on when you don't name one. The values are Standard, Enhanced, High performance, Max, and GPU. Larger machines cost more. The machine cannot change once a session has started. |
+| Tool output cap | 40000 | The most characters the tools that read sessions, plans and results return to Claude. A longer result is cut, and Claude can save the whole of it to a file instead. |
 
 Type the model and machine values as shown. Capital letters, spaces, and punctuation don't
 matter. If the plugin doesn't recognize a value, Lemma uses its own default, and Claude tells you
@@ -130,6 +131,9 @@ the project (`CLAUDE_PROJECT_DIR`), and any folders listed in `LEMMA_ALLOWED_DIR
 `:`). For any other path, Claude Code asks you to allow it first; Claude cannot answer for you.
 Hidden files and folders, such as `.env`, `.ssh` or `.aws`, are always refused. Claude cannot
 change `LEMMA_ALLOWED_DIRS`; set it in the environment that starts Claude Code.
+
+In Antigravity, the workspace is the folders Antigravity reports. If it reports none, files are
+saved to `workspace/` in the plugin's data folder.
 
 ## What the plugin runs, sends and fetches
 
@@ -164,7 +168,7 @@ and tell Claude to try again.
 first free port of 47815, 47816, and 47817. Check that another program is not using all three
 and that a firewall is not blocking local connections.
 
-**"Lemma is still working on this conversation."** A Lemma session runs one task at a time.
+**"Lemma is still working on this session."** A Lemma session runs one task at a time.
 Wait for the current run to end, or ask Claude to start a new session.
 
 **"This Lemma account has used all of its plan's tokens."** Check your usage and plan in

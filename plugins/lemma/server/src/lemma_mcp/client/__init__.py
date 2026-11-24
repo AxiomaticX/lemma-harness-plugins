@@ -9,7 +9,14 @@ from typing import Any
 import httpx
 
 from ..auth import Session
-from ..errors import BusyError, LemmaError, NotFoundError, NotLoggedInError, UsageLimitError
+from ..errors import (
+    BusyError,
+    LemmaError,
+    NotFoundError,
+    NotLoggedInError,
+    ServerError,
+    UsageLimitError,
+)
 
 TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 SAFE_SEGMENT = re.compile(r"[A-Za-z0-9_-]+")
@@ -83,7 +90,7 @@ def raise_for_status(response: httpx.Response) -> None:
             raise NotLoggedInError("Lemma did not accept the sign-in. Call the login tool.")
         case 404:
             raise NotFoundError(
-                _server_detail(response) or "Lemma has no such conversation, run or file."
+                _server_detail(response) or "Lemma has no such session, run or file."
             )
         case 409:
             refused = _server_detail(response)
@@ -93,6 +100,8 @@ def raise_for_status(response: httpx.Response) -> None:
         case 429:
             raise UsageLimitError()
     found = _server_detail(response) or f"HTTP {response.status_code}"
+    if response.is_server_error:
+        raise ServerError(f"Lemma returned an error: {found}")
     raise LemmaError(f"Lemma returned an error: {found}")
 
 

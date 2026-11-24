@@ -2,7 +2,7 @@ import json
 import tomllib
 from pathlib import Path
 
-from lemma_mcp.config import TARGET, data_dir
+from lemma_mcp.config import TARGET, data_dir, load_settings, save_settings
 
 PLUGIN = Path(__file__).parents[2]
 
@@ -21,7 +21,26 @@ def test_the_sign_in_lock_is_one_per_user_whatever_harness_runs(monkeypatch, tmp
     assert data_dir() == tmp_path / "chosen"
 
 
-def test_the_manifest_and_the_package_carry_the_same_version():
-    manifest = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
+def test_the_manifests_and_the_package_carry_the_same_version():
     project = tomllib.loads((PLUGIN / "server" / "pyproject.toml").read_text())
-    assert manifest["version"] == project["project"]["version"]
+    for folder in (".claude-plugin", ".antigravity-plugin"):
+        manifest = json.loads((PLUGIN / folder / "plugin.json").read_text())
+        assert manifest["version"] == project["project"]["version"]
+
+
+def test_settings_merge_persist_and_ignore_missing_or_corrupt_file(tmp_path: Path):
+    assert load_settings(tmp_path) == {}
+
+    save_settings(tmp_path, {"open_browser": False})
+    save_settings(tmp_path, {"default_machine": "GPU"})
+    assert load_settings(tmp_path) == {"open_browser": False, "default_machine": "GPU"}
+
+    (tmp_path / "config.json").write_text("{not json", encoding="utf-8")
+    assert load_settings(tmp_path) == {}
+
+
+def test_settings_are_private_to_the_user_and_leave_no_temp_files(tmp_path: Path):
+    save_settings(tmp_path, {"open_browser": False})
+
+    assert (tmp_path / "config.json").stat().st_mode & 0o777 == 0o600
+    assert [p.name for p in tmp_path.iterdir()] == ["config.json"]
