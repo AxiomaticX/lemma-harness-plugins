@@ -14,6 +14,10 @@ are also named `lemma`. Users call the skill as `/lemma`; its full name in Claud
 - `hooks.json`: Antigravity's hooks. When the agent's turn ends while a run it started has no
   `wait_for_result` on it, a stop hook sends the agent back to call it. The server records those
   runs under the Antigravity conversation id, in the plugin's data folder.
+- `scripts/lemma` and `scripts/lemma.cmd`: run Antigravity's MCP server and hook with `uv`. The
+  shell script also looks for `uv` in `~/.local/bin`, `~/.cargo/bin`, `/opt/homebrew/bin` and
+  `/usr/local/bin`, which an app started from the macOS Dock or a Linux desktop may not have on
+  its `PATH`.
 - `README.md` and `LICENSE`: the user guide and license the plugin directory reads from this
   folder.
 - `hooks/hooks.json`: after `send_message` or a `wait_for_result` that found the run still going,

@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "lemma": {
-      "command": "uv",
-      "args": ["run", "--frozen", "--no-dev", "--quiet", "--project", "${PLUGIN_ROOT}/server", "lemma-mcp"],
+      "command": "./scripts/lemma",
+      "args": ["lemma-mcp"],
       "env": {
         "LEMMA_HARNESS": "antigravity"
       },

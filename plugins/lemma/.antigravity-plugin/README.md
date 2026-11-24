@@ -135,7 +135,7 @@ it in the environment that starts Antigravity.
 - **Runs locally:** the `lemma-mcp` server, which Antigravity starts when the plugin loads, and
   the `lemma-unwaited` hook, which runs when Antigravity's agent finishes a turn and sends it back
   to wait on any Lemma run it started but isn't waiting on yet. Both are the Python in the
-  plugin's `server/` folder, run with `uv`.
+  plugin's `server/` folder, run with `uv` by `scripts/lemma` (`scripts/lemma.cmd` on Windows).
 - **Fetches on first start of each plugin version:** `uv` installs the server's runtime
   dependencies from PyPI (`pypi.org`, `files.pythonhosted.org`), pinned by `server/uv.lock`. If
   no Python 3.12 or newer is installed, `uv` first downloads a python-build-standalone release from
