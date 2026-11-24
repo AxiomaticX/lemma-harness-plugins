@@ -54,21 +54,21 @@ def _structured(response: Any) -> dict[str, Any]:
 
 def finished_line(conversation_id: str, run_id: str, outcome: str) -> str:
     return (
-        f"Lemma run {run_id} in conversation {conversation_id} finished: {outcome}. "
+        f"Lemma run {run_id} in session {conversation_id} finished: {outcome}. "
         "Read it with get_result."
     )
 
 
 def still_running_line(conversation_id: str, run_id: str, seconds: float) -> str:
     return (
-        f"Lemma run {run_id} in conversation {conversation_id} is still running after "
+        f"Lemma run {run_id} in session {conversation_id} is still running after "
         f"{round(seconds / 60)} minutes. Call wait_for_result to keep waiting, with "
         "wake_after_minutes set higher if it will take hours."
     )
 
 
 def stopped_line(conversation_id: str, run_id: str, why: str) -> str:
-    return f"Stopped waiting for Lemma run {run_id} in conversation {conversation_id}: {why}"
+    return f"Stopped waiting for Lemma run {run_id} in session {conversation_id}: {why}"
 
 
 async def follow(client: LemmaClient, conversation_id: str, run_id: str, window: float) -> str:

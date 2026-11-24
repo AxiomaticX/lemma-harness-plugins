@@ -1,4 +1,4 @@
-"""Sending files to a conversation, listing its files, and downloading them."""
+"""Sending files to a session, listing its files, and downloading them."""
 
 import asyncio
 import mimetypes
@@ -84,17 +84,17 @@ async def list_files(client: LemmaClient, conversation_id: str) -> list[RemoteFi
 
 
 async def notebooks(client: LemmaClient, conversation_id: str) -> set[str]:
-    """The names of the conversation's files that are notebooks Lemma can open."""
+    """The names of the session's files that are notebooks Lemma can open."""
     response = await client.request("GET", f"/conversations/{conversation_id}/notebooks")
     return set(response.json().get("files") or [])
 
 
 async def download(client: LemmaClient, conversation_id: str, name: str, dest_dir: Path) -> Path:
-    """Save the conversation's file named ``name`` (or with that id) into ``dest_dir``."""
+    """Save the session's file named ``name`` (or with that id) into ``dest_dir``."""
     files = await list_files(client, conversation_id)
     matches = [f for f in files if name in (f.id, f.name)]
     if not matches:
-        raise NotFoundError(f"The conversation has no file named {name}.")
+        raise NotFoundError(f"The session has no file named {name}.")
     if len(matches) > 1:
         ids = ", ".join(f.id for f in matches)
         raise LemmaError(f"More than one file is named {name}; pass one of these ids: {ids}.")

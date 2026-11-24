@@ -12,8 +12,8 @@ class NotLoggedInError(LemmaError):
 class BusyError(LemmaError):
     def __init__(self) -> None:
         super().__init__(
-            "Lemma is still working on this conversation. Wait for that run to finish, "
-            "or start a new conversation."
+            "Lemma is still working on this session. Wait for that run to finish, "
+            "or start a new session."
         )
 
 

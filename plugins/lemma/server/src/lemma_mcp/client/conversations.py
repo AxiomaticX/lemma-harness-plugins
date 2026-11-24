@@ -1,4 +1,4 @@
-"""Finding the user's earlier conversations and reading what was said in them."""
+"""Finding the user's earlier sessions and reading what was said in them."""
 
 from typing import Any
 
@@ -8,13 +8,13 @@ MATCH_MARKERS = str.maketrans("", "", "\x02\x03")
 
 
 async def search(client: LemmaClient, query: str) -> list[dict[str, Any]]:
-    """The user's conversations whose title, file names or messages match, best first."""
+    """The user's sessions whose title, file names or messages match, best first."""
     response = await client.request("GET", "/users/me/conversations/search", params={"q": query})
     return [_hit(hit) for hit in response.json()["hits"]]
 
 
 async def recent(client: LemmaClient, limit: int) -> list[dict[str, Any]]:
-    """The user's conversations, and those colleagues shared that the user took part in, most
+    """The user's sessions, and those colleagues shared that the user took part in, most
     recently active first."""
     listed = (await client.request("GET", "/users/me/conversations")).json()["conversations"]
     newest = sorted(listed, key=lambda c: c["last_message_at"] or c["created_at"], reverse=True)

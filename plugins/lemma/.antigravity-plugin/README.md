@@ -150,7 +150,7 @@ in, and tell Antigravity to try again.
 first free port of 47815, 47816, and 47817. Check that another program is not using all three
 and that a firewall is not blocking local connections.
 
-**"Lemma is still working on this conversation."** A Lemma session runs one task at a time.
+**"Lemma is still working on this session."** A Lemma session runs one task at a time.
 Wait for the current run to end, or ask Antigravity to start a new session.
 
 **"This Lemma account has used all of its plan's tokens."** Check your usage and plan in
