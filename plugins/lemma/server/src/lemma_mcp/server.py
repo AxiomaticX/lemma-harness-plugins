@@ -228,8 +228,9 @@ DefaultMachine = Literal[
     "GPU",
 ]
 CONFIGURE = (
-    "Read or update the plugin's persistent settings (saved in config.json in the plugin's data "
-    "folder, so they survive plugin updates). Call with no arguments to see the current "
+    "Read or update the plugin's persistent settings (saved in ~/.lemma-mcp/config.json, so "
+    "they survive plugin updates). Environment variables set when Antigravity started win over "
+    "saved settings. Call with no arguments to see the current "
     "settings; pass any subset of open_browser, default_model, default_machine and "
     "max_tool_output_chars to change them immediately without restarting. Only change settings "
     "when the user asks."

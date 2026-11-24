@@ -1,8 +1,8 @@
 # Lemma for Google Antigravity
 
-[Lemma](https://lemma.axiomatic.ai) is [Axiomatic AI](https://axiomatic.ai)'s agent for research and
-computing in science and engineering. It works on its own machine, with its own tools, and keeps a record of
-every step in a session you can open in the browser.
+[Lemma](https://lemma.axiomatic.ai) is [Axiomatic AI](https://axiomatic.ai)'s agent for research
+and computing in science and engineering. It works on its own machine, with its own tools, and
+keeps a record of every step in a session you can open in the browser.
 
 This plugin lets Antigravity hand work to Lemma. From Antigravity you can start a Lemma session,
 send it local files, wait for the run to finish, read Lemma's answer, and download the files it
@@ -27,6 +27,14 @@ To install from a terminal instead:
 ```bash
 agy plugin install lemma@antigravity-plugins-official
 ```
+
+Or install it straight from GitHub:
+
+```bash
+agy plugin install https://github.com/AxiomaticX/lemma-harness-plugins/tree/main/plugins/lemma
+```
+
+If Lemma's tools don't appear after installing, restart Antigravity.
 
 ## Sign in
 
@@ -91,8 +99,13 @@ when the plugin updates. Ask Antigravity to show Lemma's settings to see the cur
 | --- | --- | --- |
 | Open sessions in the browser | On | Opens each new session in your browser as soon as Antigravity sends its first message. |
 | Default model | Lemma's default | The model a new session uses when you don't name one. Lemma's default is the model Lemma would use in the browser. The other values are Anthropic Pro Fast, Anthropic Pro, Anthropic Normal, Google Pro, Google Normal, Open-weight Pro, and Open-weight Normal. |
-| Default machine | Standard | The machine a new session runs on when you don't name one. The values are Standard, Enhanced, High performance, Max, and GPU. Larger machines cost more. The machine cannot change once a session has started. |
+| Default machine | Lemma's default | The machine a new session runs on when you don't name one. Lemma's default is the machine Lemma would use in the browser. The other values are Standard, Enhanced, High performance, Max, and GPU. Larger machines cost more. The machine cannot change once a session has started. |
 | Tool output cap | 40000 | The most characters the tools that read sessions, plans and results return to Antigravity. A longer result is cut, and Antigravity can save the whole of it to a file instead. |
+
+To fix a setting for every start instead, set `LEMMA_OPEN_BROWSER`, `LEMMA_DEFAULT_MODEL`,
+`LEMMA_DEFAULT_MACHINE` or `LEMMA_MAX_TOOL_OUTPUT_CHARS` in the environment that starts
+Antigravity, then restart it. A variable that is set wins over the saved setting each time
+Antigravity starts.
 
 You can also name a model or machine in your request, such as "use a GPU machine for this".
 Ask Antigravity to list the models and machines available to your account and what each machine
@@ -111,9 +124,9 @@ costs.
 Files are sent from, and saved to, the folders open in Antigravity and any folders listed in
 `LEMMA_ALLOWED_DIRS` (separated by `:`). If no folder is open, a `workspace` folder in the
 plugin's data folder is used instead. For any other path, Antigravity asks you to allow it first,
-or the plugin refuses it; the agent cannot allow it for you. Hidden files and folders, such as `.env`, `.ssh` or
-`.aws`, are always refused. Antigravity cannot change `LEMMA_ALLOWED_DIRS`; set it in the
-environment that starts Antigravity.
+or the plugin refuses it; the agent cannot allow it for you. Hidden files and folders, such as
+`.env`, `.ssh` or `.aws`, are always refused. Antigravity cannot change `LEMMA_ALLOWED_DIRS`; set
+it in the environment that starts Antigravity.
 
 ## What the plugin runs, sends and fetches
 
