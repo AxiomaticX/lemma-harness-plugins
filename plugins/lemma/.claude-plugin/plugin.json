@@ -15,6 +15,18 @@
   "supportUrl": "https://github.com/AxiomaticX/lemma-harness-plugins/issues",
   "privacyPolicyUrl": "https://axiomatic.ai/privacy-policy",
   "termsOfServiceUrl": "https://axiomatic.ai/eula",
+  "network": {
+    "hosts": [
+      "api.axiomatic-ai.com",
+      "auth.axiomatic-ai.com",
+      "storage.googleapis.com",
+      "pypi.org",
+      "files.pythonhosted.org",
+      "releases.astral.sh",
+      "github.com",
+      "release-assets.githubusercontent.com"
+    ]
+  },
   "userConfig": {
     "open_browser": {
       "type": "boolean",

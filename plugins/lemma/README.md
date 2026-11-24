@@ -142,8 +142,9 @@ saved to `workspace/` in the plugin's data folder.
   or waits on a run; it exits at once when no run is going. Both are the Python in
   [`server/`](server/), run with `uv`.
 - **Fetches on first start of each plugin version:** `uv` installs the server's runtime
-  dependencies from PyPI, pinned by `server/uv.lock`. If no Python 3.12 or newer is installed,
-  `uv` first downloads one from its python-build-standalone releases on GitHub.
+  dependencies from PyPI (`pypi.org`, `files.pythonhosted.org`), pinned by `server/uv.lock`. If
+  no Python 3.12 or newer is installed, `uv` first downloads a python-build-standalone release from
+  `releases.astral.sh`, or from GitHub with older versions of `uv`.
 - **Sends to Lemma:** over HTTPS to `api.axiomatic-ai.com`, the messages, settings and answers
   Claude passes to Lemma's tools, and the files you name in them. Files go to the storage link
   Lemma returns for each upload, and downloads come from the storage link Lemma returns for each
