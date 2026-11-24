@@ -124,8 +124,9 @@ costs.
 ## Which local files Lemma can reach
 
 Files are sent from, and saved to, the folders open in Antigravity and any folders listed in
-`LEMMA_ALLOWED_DIRS` (separated by `:`). If no folder is open, a `workspace` folder in the
-plugin's data folder is used instead. For any other path, Antigravity asks you to allow it first,
+`LEMMA_ALLOWED_DIRS` (separated by `:`). If no folder is open, Antigravity's `scratch` folder,
+where the agent then works, and a `workspace` folder in the plugin's data folder are used
+instead. For any other path, Antigravity asks you to allow it first,
 or the plugin refuses it; the agent cannot allow it for you. Hidden files and folders, such as
 `.env`, `.ssh` or `.aws`, are always refused. Antigravity cannot change `LEMMA_ALLOWED_DIRS`; set
 it in the environment that starts Antigravity.
