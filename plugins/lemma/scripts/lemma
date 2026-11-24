@@ -1,0 +1,5 @@
+#!/bin/sh
+# Apps started from the macOS Dock or a Linux desktop don't read the shell profile, so add the
+# directories the uv installers and Homebrew use.
+PATH="$PATH:$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin"
+exec uv run --frozen --no-dev --quiet --project "$(dirname "$0")/../server" "$@"

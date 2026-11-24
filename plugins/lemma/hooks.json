@@ -3,7 +3,7 @@
     "Stop": [
       {
         "type": "command",
-        "command": "uv run --frozen --no-dev --quiet --project ./server lemma-unwaited",
+        "command": "\"./scripts/lemma\" lemma-unwaited",
         "timeout": 30
       }
     ]
