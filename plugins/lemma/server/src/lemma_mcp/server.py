@@ -306,6 +306,7 @@ class App:
     settings_dir: Path | None = None
     unwaited_dir: Path | None = None
     fallback_dir: Path | None = None
+    scratch_dir: Path | None = None
 
     @classmethod
     def from_env(cls) -> "App":
@@ -335,6 +336,9 @@ class App:
             client=LemmaClient(Session(TARGET, settings_dir)),
             project_dir=Path(project) if project else None,
             fallback_dir=Path(plugin_data) / "workspace" if plugin_data else Path.cwd(),
+            scratch_dir=Path(plugin_data).parent.parent / "scratch"
+            if antigravity and plugin_data
+            else None,
             open_browser=open_browser,
             default_model=default_model,
             default_machine=default_machine,
@@ -425,14 +429,16 @@ class App:
         return f"The plugin did not recognize the {' or the '.join(ignored)}. {fix}"
 
     def _project(self, workspace: tuple[Path, ...]) -> tuple[Path, ...]:
-        """The project folder: CLAUDE_PROJECT_DIR, or the fallback only when the client reports
-        no workspace."""
+        """The project folders: CLAUDE_PROJECT_DIR, or, only when the client reports no
+        workspace, the fallback and Antigravity's scratch folder, where the app's agent works
+        when no folder is open."""
         if self.project_dir is not None:
             return (self.project_dir,)
         if workspace or self.fallback_dir is None:
             return ()
         self.fallback_dir.mkdir(parents=True, exist_ok=True)
-        return (self.fallback_dir,)
+        scratch = () if self.scratch_dir is None else (self.scratch_dir,)
+        return (self.fallback_dir, *scratch)
 
     def locate(self, raw: str, workspace: tuple[Path, ...] = ()) -> tuple[Path, bool]:
         """The real path, and whether it lies inside the client's workspace, the project or

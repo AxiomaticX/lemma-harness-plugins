@@ -682,6 +682,22 @@ def test_the_fallback_folder_counts_only_when_the_client_reports_no_workspace(
     assert fallback.is_dir()
 
 
+def test_antigravity_scratch_counts_only_when_the_client_reports_no_workspace(
+    app: App, tmp_path: Path
+):
+    data = tmp_path / ".gemini" / "antigravity"
+    fallback, scratch = data / "plugin_data" / "lemma" / "workspace", data / "scratch"
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    unrooted = replace(app, project_dir=None, fallback_dir=fallback, scratch_dir=scratch)
+    made = scratch / "demo" / "data.csv"
+
+    assert unrooted.locate(str(made), ()) == (made.resolve(), True)
+    for raw, reported in [(made, (workspace,)), (scratch / "demo" / ".env", ())]:
+        with pytest.raises(ToolError, match="hidden"):
+            unrooted.locate(str(raw), reported)
+
+
 @pytest.mark.parametrize(
     ("project", "plugin_data", "expected_project", "expected_fallback"),
     [
@@ -709,6 +725,35 @@ def test_from_env_takes_the_project_from_claude_and_the_fallback_from_plugin_dat
 
     assert loaded.project_dir == expected_project
     assert loaded.fallback_dir == expected_fallback
+
+
+@pytest.mark.parametrize(
+    ("harness", "plugin_data", "expected"),
+    [
+        (
+            "antigravity",
+            "/home/u/.gemini/antigravity/plugin_data/lemma",
+            "/home/u/.gemini/antigravity/scratch",
+        ),
+        ("antigravity", None, None),
+        (None, "/home/u/.gemini/antigravity/plugin_data/lemma", None),
+    ],
+)
+def test_from_env_finds_antigravity_scratch_beside_its_plugin_data(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    harness: str | None,
+    plugin_data: str | None,
+    expected: str | None,
+):
+    monkeypatch.setenv("LEMMA_DATA_DIR", str(tmp_path))
+    for name, value in (("LEMMA_HARNESS", harness), ("PLUGIN_DATA", plugin_data)):
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+
+    assert App.from_env().scratch_dir == (Path(expected) if expected else None)
 
 
 @pytest.mark.parametrize("reported", [True, False])
